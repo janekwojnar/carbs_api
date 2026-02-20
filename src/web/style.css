@@ -41,6 +41,13 @@ h1 {
   max-width: 900px;
 }
 
+.auth-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
 .layout {
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
@@ -64,6 +71,10 @@ h1 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+}
+
+.form-grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 label {
@@ -149,5 +160,6 @@ button {
 @media (max-width: 980px) {
   .layout { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .form-grid.two { grid-template-columns: 1fr; }
   .grid3 { grid-template-columns: 1fr; }
 }

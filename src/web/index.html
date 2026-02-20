@@ -12,7 +12,23 @@
       <h1>Endurance Fuel AI</h1>
       <div class="subtitle">
         Advanced carb/fueling intelligence for running, cycling, swimming, hiking, trail running, gym, HIIT, and Hyrox.
-        Includes explainable recommendations, confidence intervals, GI risk, and scenario simulation.
+        Register/login to use prediction and simulation tools.
+      </div>
+    </section>
+
+    <section class="auth-grid">
+      <div class="card">
+        <h2>Account</h2>
+        <div class="form-grid two">
+          <label>Email<input id="email" type="email" placeholder="you@example.com" /></label>
+          <label>Password<input id="password" type="password" placeholder="Minimum 8 characters" /></label>
+        </div>
+        <div class="actions">
+          <button class="primary" id="registerBtn">Register</button>
+          <button class="secondary" id="loginBtn">Login</button>
+          <button class="secondary" id="logoutBtn">Logout</button>
+        </div>
+        <div class="notes" id="authState">Not logged in</div>
       </div>
     </section>
 

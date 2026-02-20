@@ -1,3 +1,6 @@
+const tokenKey = "efa_token";
+const emailKey = "efa_email";
+
 function n(id) {
   return document.getElementById(id).value;
 }
@@ -9,6 +12,27 @@ function asNum(id) {
 
 function boolVal(id) {
   return n(id) === "true";
+}
+
+function getToken() {
+  return localStorage.getItem(tokenKey) || "";
+}
+
+function setAuth(token, email) {
+  localStorage.setItem(tokenKey, token);
+  localStorage.setItem(emailKey, email);
+  syncAuthState();
+}
+
+function clearAuth() {
+  localStorage.removeItem(tokenKey);
+  localStorage.removeItem(emailKey);
+  syncAuthState();
+}
+
+function syncAuthState() {
+  const email = localStorage.getItem(emailKey);
+  document.getElementById("authState").textContent = email ? `Logged in as ${email}` : "Not logged in";
 }
 
 function buildPayload() {
@@ -82,10 +106,19 @@ function renderPrediction(data, heading = "Recommendation") {
   `;
 }
 
-async function postJson(url, payload) {
+async function postJson(url, payload, includeAuth = false) {
+  const headers = { "Content-Type": "application/json" };
+  if (includeAuth) {
+    const token = getToken();
+    if (!token) {
+      throw new Error("Please login first.");
+    }
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(payload)
   });
 
@@ -96,10 +129,39 @@ async function postJson(url, payload) {
   return res.json();
 }
 
+async function authRequest(path) {
+  const email = n("email").trim().toLowerCase();
+  const password = n("password");
+  if (!email || !password) {
+    throw new Error("Provide email and password.");
+  }
+
+  const data = await postJson(path, { email, password }, false);
+  setAuth(data.access_token, data.user.email);
+}
+
+async function runRegister() {
+  try {
+    await authRequest("/api/v1/auth/register");
+    document.getElementById("result").innerHTML = '<div class="notes">Account created and logged in.</div>';
+  } catch (err) {
+    document.getElementById("result").innerHTML = `<div class="err">${String(err)}</div>`;
+  }
+}
+
+async function runLogin() {
+  try {
+    await authRequest("/api/v1/auth/login");
+    document.getElementById("result").innerHTML = '<div class="notes">Logged in.</div>';
+  } catch (err) {
+    document.getElementById("result").innerHTML = `<div class="err">${String(err)}</div>`;
+  }
+}
+
 async function runPredict() {
   try {
     const payload = buildPayload();
-    const data = await postJson("/api/v1/predict", payload);
+    const data = await postJson("/api/v1/predict", payload, true);
     renderPrediction(data, "Recommendation");
   } catch (err) {
     document.getElementById("result").innerHTML = `<div class="err">${String(err)}</div>`;
@@ -115,7 +177,7 @@ async function runSimulate() {
       longer_by_minutes: 20,
       intensity_delta_rpe: 0.7
     };
-    const data = await postJson("/api/v1/simulate", payload);
+    const data = await postJson("/api/v1/simulate", payload, true);
     renderPrediction(data.simulated, "Simulated Recommendation (+5C, +20m, +0.7 RPE)");
 
     const extra = document.createElement("div");
@@ -127,5 +189,10 @@ async function runSimulate() {
   }
 }
 
+document.getElementById("registerBtn").addEventListener("click", runRegister);
+document.getElementById("loginBtn").addEventListener("click", runLogin);
+document.getElementById("logoutBtn").addEventListener("click", clearAuth);
 document.getElementById("predictBtn").addEventListener("click", runPredict);
 document.getElementById("simulateBtn").addEventListener("click", runSimulate);
+
+syncAuthState();

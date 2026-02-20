@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Endurance Fuel AI</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <h1>Endurance Fuel AI</h1>
+      <div class="subtitle">
+        Advanced carb/fueling intelligence for running, cycling, swimming, hiking, trail running, gym, HIIT, and Hyrox.
+        Includes explainable recommendations, confidence intervals, GI risk, and scenario simulation.
+      </div>
+    </section>
+
+    <section class="layout">
+      <div class="card">
+        <h2>Input Engine</h2>
+        <div class="form-grid">
+          <label>Sport
+            <select id="sport">
+              <option>running</option>
+              <option>cycling</option>
+              <option>swimming</option>
+              <option>hiking</option>
+              <option>trail_running</option>
+              <option>gym</option>
+              <option>hiit</option>
+              <option>hyrox</option>
+            </select>
+          </label>
+          <label>Duration (min)<input id="duration" type="number" value="90" /></label>
+          <label>Intensity RPE (1-10)<input id="rpe" type="number" step="0.1" value="7" /></label>
+          <label>Body mass (kg)<input id="mass" type="number" value="72" /></label>
+          <label>Body fat %<input id="bf" type="number" value="14" /></label>
+          <label>VO2max<input id="vo2" type="number" value="56" /></label>
+          <label>Lactate threshold %<input id="lt" type="number" value="86" /></label>
+          <label>GI tolerance (0-10)<input id="gi" type="number" step="0.1" value="6" /></label>
+          <label>Sleep (h)<input id="sleep" type="number" step="0.1" value="7.5" /></label>
+          <label>HRV (0-100)<input id="hrv" type="number" value="61" /></label>
+          <label>Stress (0-10)<input id="stress" type="number" step="0.1" value="3" /></label>
+          <label>Temp (C)<input id="temp" type="number" value="20" /></label>
+          <label>Humidity %<input id="hum" type="number" value="55" /></label>
+          <label>Altitude (m)<input id="alt" type="number" value="120" /></label>
+          <label>Terrain factor (0.7-1.8)<input id="terrain" type="number" step="0.01" value="1" /></label>
+          <label>Weekly load (h)<input id="load" type="number" step="0.1" value="9" /></label>
+          <label>Race day
+            <select id="race"><option value="false">No</option><option value="true">Yes</option></select>
+          </label>
+          <label>Indoor
+            <select id="indoor"><option value="false">No</option><option value="true">Yes</option></select>
+          </label>
+          <label>Science mode
+            <select id="science"><option value="true">Yes</option><option value="false">Practical</option></select>
+          </label>
+        </div>
+        <div class="actions">
+          <button class="primary" id="predictBtn">Generate Recommendation</button>
+          <button class="secondary" id="simulateBtn">Run What-if Scenario</button>
+        </div>
+        <div class="notes">Simulation defaults: +5C, +20 min, +0.7 RPE</div>
+      </div>
+
+      <div class="card">
+        <h2>Output</h2>
+        <div id="result">
+          <div class="notes">No prediction yet.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

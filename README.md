@@ -19,6 +19,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 export JWT_SECRET='replace-with-long-random-secret'
+export DB_PATH='/tmp/endurance.sqlite3'
 # Optional for Garmin sync bridge
 export GARMIN_PROXY_URL='https://your-garmin-proxy.example.com'
 uvicorn src.api.main:app --reload --port 8000
@@ -31,6 +32,7 @@ Open: http://localhost:8000
 - Render uses `render.yaml`
 - Set env var `JWT_SECRET`
 - Optional: set `GARMIN_PROXY_URL`
+- Keep `DB_PATH` on persistent disk (`/var/data/endurance.sqlite3`) for durable accounts/data.
 
 ## API overview
 Public:
@@ -56,3 +58,12 @@ Auth required:
 ## Integration notes
 - Strava: requires user access token.
 - Garmin Connect: there is no stable public direct consumer API. This app supports Garmin sync through a partner/proxy endpoint (`GARMIN_PROXY_URL`).
+
+## Security and auth behavior
+- Passwords are never stored in plain text. They are hashed (PBKDF2 + salt) in the database.
+- Email and session token are stored in browser local storage for session continuity.
+- If login state appears lost in production, verify persistent storage is configured (`DB_PATH` on mounted disk).
+
+## UI troubleshooting
+- If buttons do not respond, check the top-page error box for initialization issues.
+- Hard refresh browser cache after deployment (`Cmd+Shift+R` / `Ctrl+F5`) to clear stale JavaScript.

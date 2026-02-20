@@ -95,7 +95,7 @@ app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
 @app.get("/api/v1/health")
 def health() -> dict:
-    return {"ok": True, "service": "endurance-fuel-ai"}
+    return {"ok": True, "service": "endurance-fuel-ai", "version": "0.3.1"}
 
 
 @app.post("/api/v1/auth/register")

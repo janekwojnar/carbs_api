@@ -2,17 +2,16 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-DB_PATH = Path("audit.sqlite3")
+from src.storage.db import get_db_path
 
 
 PROVIDERS = ["strava", "garmin_connect"]
 
 
 def _conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(get_db_path())
     conn.row_factory = sqlite3.Row
     return conn
 

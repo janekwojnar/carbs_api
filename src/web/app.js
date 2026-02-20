@@ -1,13 +1,15 @@
 const tokenKey = "efa_token";
 const emailKey = "efa_email";
 let analyticsChart = null;
+const pageErrorBoxId = "pageError";
 
 function n(id) {
   return document.getElementById(id).value;
 }
 
 function asNum(id) {
-  const v = Number(n(id));
+  const raw = String(n(id) || "").trim().replace(",", ".");
+  const v = Number(raw);
   return Number.isFinite(v) ? v : null;
 }
 
@@ -34,6 +36,13 @@ function clearAuth() {
 function syncAuthState() {
   const email = localStorage.getItem(emailKey);
   document.getElementById("authState").textContent = email ? `Logged in as ${email}` : "Not logged in";
+}
+
+function showPageError(msg) {
+  const el = document.getElementById(pageErrorBoxId);
+  if (el) {
+    el.innerHTML = `<div class="err">${msg}</div>`;
+  }
 }
 
 function authHeaders(includeJson = true) {
@@ -339,6 +348,9 @@ async function refreshAnalytics() {
     const c = chartData.charts || {};
     const ctx = document.getElementById("analyticsChart").getContext("2d");
     if (analyticsChart) analyticsChart.destroy();
+    if (typeof Chart === "undefined") {
+      throw new Error("Chart.js failed to load. Refresh page or check network policy.");
+    }
     analyticsChart = new Chart(ctx, {
       type: "line",
       data: {
@@ -412,21 +424,40 @@ async function bootstrapUser() {
   }
 }
 
-document.getElementById("registerBtn").addEventListener("click", runRegister);
-document.getElementById("loginBtn").addEventListener("click", runLogin);
-document.getElementById("saveProfileBtn").addEventListener("click", saveProfileDefaults);
-document.getElementById("logoutBtn").addEventListener("click", clearAuth);
-document.getElementById("predictBtn").addEventListener("click", runPredict);
-document.getElementById("simulateBtn").addEventListener("click", runSimulate);
-document.getElementById("saveWorkoutBtn").addEventListener("click", saveWorkout);
-document.getElementById("loadWorkoutsBtn").addEventListener("click", loadWorkouts);
-document.getElementById("refreshAnalyticsBtn").addEventListener("click", refreshAnalytics);
-document.getElementById("saveStravaTokenBtn").addEventListener("click", () => saveIntegrationToken("strava", "strava_token"));
-document.getElementById("syncStravaCompletedBtn").addEventListener("click", () => syncProvider("strava", "completed"));
-document.getElementById("saveGarminTokenBtn").addEventListener("click", () => saveIntegrationToken("garmin_connect", "garmin_token"));
-document.getElementById("syncGarminPlannedBtn").addEventListener("click", () => syncProvider("garmin_connect", "planned"));
-document.getElementById("syncGarminCompletedBtn").addEventListener("click", () => syncProvider("garmin_connect", "completed"));
-document.getElementById("refreshIntegrationsBtn").addEventListener("click", refreshIntegrations);
+function bind(id, handler) {
+  const el = document.getElementById(id);
+  if (!el) {
+    throw new Error(`Missing required element: ${id}`);
+  }
+  el.addEventListener("click", handler);
+}
 
-syncAuthState();
-bootstrapUser();
+function initPage() {
+  try {
+    bind("registerBtn", runRegister);
+    bind("loginBtn", runLogin);
+    bind("saveProfileBtn", saveProfileDefaults);
+    bind("logoutBtn", clearAuth);
+    bind("predictBtn", runPredict);
+    bind("simulateBtn", runSimulate);
+    bind("saveWorkoutBtn", saveWorkout);
+    bind("loadWorkoutsBtn", loadWorkouts);
+    bind("refreshAnalyticsBtn", refreshAnalytics);
+    bind("saveStravaTokenBtn", () => saveIntegrationToken("strava", "strava_token"));
+    bind("syncStravaCompletedBtn", () => syncProvider("strava", "completed"));
+    bind("saveGarminTokenBtn", () => saveIntegrationToken("garmin_connect", "garmin_token"));
+    bind("syncGarminPlannedBtn", () => syncProvider("garmin_connect", "planned"));
+    bind("syncGarminCompletedBtn", () => syncProvider("garmin_connect", "completed"));
+    bind("refreshIntegrationsBtn", refreshIntegrations);
+    syncAuthState();
+    bootstrapUser();
+  } catch (err) {
+    showPageError(`Initialization failed: ${String(err)}`);
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initPage);
+} else {
+  initPage();
+}

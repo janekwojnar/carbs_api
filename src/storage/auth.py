@@ -11,7 +11,8 @@ from typing import Any, Dict, Optional
 
 import jwt
 
-DB_PATH = Path("audit.sqlite3")
+from src.storage.db import get_db_path
+
 JWT_ALG = "HS256"
 JWT_TTL_HOURS = 24 * 14
 
@@ -21,7 +22,7 @@ def _jwt_secret() -> str:
 
 
 def _conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(get_db_path())
     conn.row_factory = sqlite3.Row
     return conn
 

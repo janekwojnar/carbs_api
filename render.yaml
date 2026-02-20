@@ -7,5 +7,13 @@ services:
     envVars:
       - key: JWT_SECRET
         sync: false
-    plan: free
+      - key: DB_PATH
+        value: /var/data/endurance.sqlite3
+      - key: GARMIN_PROXY_URL
+        sync: false
+    disks:
+      - name: endurance-data
+        mountPath: /var/data
+        sizeGB: 1
+    plan: starter
     pythonVersion: 3.12.8

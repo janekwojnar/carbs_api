@@ -5,87 +5,129 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Endurance Fuel AI</title>
   <link rel="stylesheet" href="/static/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <main class="wrap">
     <section class="hero">
       <h1>Endurance Fuel AI</h1>
-      <div class="subtitle">
-        Advanced carb/fueling intelligence for running, cycling, swimming, hiking, trail running, gym, HIIT, and Hyrox.
-        Register/login to use prediction and simulation tools.
-      </div>
+      <div class="subtitle">Advanced fueling intelligence with profile defaults, workout tracking, analytics charts, and Strava/Garmin sync.</div>
     </section>
 
-    <section class="auth-grid">
+    <section class="card">
+      <h2>Account & Onboarding</h2>
+      <div class="form-grid four">
+        <label>Email<input id="email" type="email" placeholder="you@example.com" /></label>
+        <label>Password<input id="password" type="password" placeholder="Min 8 chars" /></label>
+        <label>Mass (kg)<input id="reg_mass" type="number" value="72" /></label>
+        <label>Body Fat %<input id="reg_bf" type="number" value="15" /></label>
+        <label>VO2max<input id="reg_vo2" type="number" value="50" /></label>
+        <label>LT %<input id="reg_lt" type="number" value="85" /></label>
+        <label>GI tolerance<input id="reg_gi" type="number" step="0.1" value="6" /></label>
+        <label>Default Temp C<input id="reg_temp" type="number" value="20" /></label>
+        <label>Default Humidity %<input id="reg_hum" type="number" value="55" /></label>
+        <label>Default Altitude m<input id="reg_alt" type="number" value="100" /></label>
+        <label>Default Terrain<input id="reg_terrain" type="number" step="0.01" value="1" /></label>
+        <label>Weekly Load h<input id="reg_load" type="number" step="0.1" value="8" /></label>
+      </div>
+      <div class="actions">
+        <button class="primary" id="registerBtn">Register</button>
+        <button class="secondary" id="loginBtn">Login</button>
+        <button class="secondary" id="saveProfileBtn">Save Profile Defaults</button>
+        <button class="secondary" id="logoutBtn">Logout</button>
+      </div>
+      <div class="notes" id="authState">Not logged in</div>
+    </section>
+
+    <section class="layout">
       <div class="card">
-        <h2>Account</h2>
-        <div class="form-grid two">
-          <label>Email<input id="email" type="email" placeholder="you@example.com" /></label>
-          <label>Password<input id="password" type="password" placeholder="Minimum 8 characters" /></label>
+        <h2>Prediction Engine</h2>
+        <div class="form-grid four">
+          <label>Sport
+            <select id="sport">
+              <option>running</option><option>cycling</option><option>swimming</option><option>hiking</option>
+              <option>trail_running</option><option>gym</option><option>hiit</option><option>hyrox</option>
+            </select>
+          </label>
+          <label>Duration min<input id="duration" type="number" value="90" /></label>
+          <label>Intensity RPE<input id="rpe" type="number" step="0.1" value="7" /></label>
+          <label>Weekly load h<input id="load" type="number" step="0.1" value="8" /></label>
+
+          <label>Mass kg<input id="mass" type="number" value="72" /></label>
+          <label>Body fat %<input id="bf" type="number" value="15" /></label>
+          <label>VO2max<input id="vo2" type="number" value="50" /></label>
+          <label>Lactate threshold %<input id="lt" type="number" value="85" /></label>
+
+          <label>GI tolerance<input id="gi" type="number" step="0.1" value="6" /></label>
+          <label>Stress<input id="stress" type="number" step="0.1" value="3" /></label>
+          <label>Sleep h<input id="sleep" type="number" step="0.1" value="7.5" /></label>
+          <label>HRV<input id="hrv" type="number" value="60" /></label>
+
+          <label>Avg HR bpm<input id="avg_hr" type="number" value="150" /></label>
+          <label>Max HR bpm<input id="max_hr" type="number" value="185" /></label>
+          <label>Avg power W<input id="avg_power" type="number" value="230" /></label>
+          <label>Norm power W<input id="np" type="number" value="248" /></label>
+
+          <label>Cadence<input id="cad" type="number" value="84" /></label>
+          <label>Distance km<input id="dist" type="number" step="0.1" value="18" /></label>
+          <label>Elevation m<input id="elev" type="number" value="150" /></label>
+          <label>Temp C<input id="temp" type="number" value="20" /></label>
+
+          <label>Humidity %<input id="hum" type="number" value="55" /></label>
+          <label>Altitude m<input id="alt" type="number" value="100" /></label>
+          <label>Terrain factor<input id="terrain" type="number" step="0.01" value="1" /></label>
+          <label>Science mode
+            <select id="science"><option value="true">Yes</option><option value="false">Practical</option></select>
+          </label>
+
+          <label>Indoor<select id="indoor"><option value="false">No</option><option value="true">Yes</option></select></label>
+          <label>Race day<select id="race"><option value="false">No</option><option value="true">Yes</option></select></label>
         </div>
         <div class="actions">
-          <button class="primary" id="registerBtn">Register</button>
-          <button class="secondary" id="loginBtn">Login</button>
-          <button class="secondary" id="logoutBtn">Logout</button>
+          <button class="primary" id="predictBtn">Generate Recommendation</button>
+          <button class="secondary" id="simulateBtn">Run What-if (+5C, +20m, +0.7 RPE)</button>
+          <button class="secondary" id="saveWorkoutBtn">Save As Completed Workout</button>
         </div>
-        <div class="notes" id="authState">Not logged in</div>
+      </div>
+
+      <div class="card">
+        <h2>Output</h2>
+        <div id="result"><div class="notes">No prediction yet.</div></div>
       </div>
     </section>
 
     <section class="layout">
       <div class="card">
-        <h2>Input Engine</h2>
-        <div class="form-grid">
-          <label>Sport
-            <select id="sport">
-              <option>running</option>
-              <option>cycling</option>
-              <option>swimming</option>
-              <option>hiking</option>
-              <option>trail_running</option>
-              <option>gym</option>
-              <option>hiit</option>
-              <option>hyrox</option>
-            </select>
-          </label>
-          <label>Duration (min)<input id="duration" type="number" value="90" /></label>
-          <label>Intensity RPE (1-10)<input id="rpe" type="number" step="0.1" value="7" /></label>
-          <label>Body mass (kg)<input id="mass" type="number" value="72" /></label>
-          <label>Body fat %<input id="bf" type="number" value="14" /></label>
-          <label>VO2max<input id="vo2" type="number" value="56" /></label>
-          <label>Lactate threshold %<input id="lt" type="number" value="86" /></label>
-          <label>GI tolerance (0-10)<input id="gi" type="number" step="0.1" value="6" /></label>
-          <label>Sleep (h)<input id="sleep" type="number" step="0.1" value="7.5" /></label>
-          <label>HRV (0-100)<input id="hrv" type="number" value="61" /></label>
-          <label>Stress (0-10)<input id="stress" type="number" step="0.1" value="3" /></label>
-          <label>Temp (C)<input id="temp" type="number" value="20" /></label>
-          <label>Humidity %<input id="hum" type="number" value="55" /></label>
-          <label>Altitude (m)<input id="alt" type="number" value="120" /></label>
-          <label>Terrain factor (0.7-1.8)<input id="terrain" type="number" step="0.01" value="1" /></label>
-          <label>Weekly load (h)<input id="load" type="number" step="0.1" value="9" /></label>
-          <label>Race day
-            <select id="race"><option value="false">No</option><option value="true">Yes</option></select>
-          </label>
-          <label>Indoor
-            <select id="indoor"><option value="false">No</option><option value="true">Yes</option></select>
-          </label>
-          <label>Science mode
-            <select id="science"><option value="true">Yes</option><option value="false">Practical</option></select>
-          </label>
+        <h2>Integrations</h2>
+        <div class="form-grid two">
+          <label>Strava Access Token<input id="strava_token" type="text" placeholder="Paste Strava bearer token" /></label>
+          <label>Garmin Access Token<input id="garmin_token" type="text" placeholder="Paste Garmin/proxy token" /></label>
         </div>
         <div class="actions">
-          <button class="primary" id="predictBtn">Generate Recommendation</button>
-          <button class="secondary" id="simulateBtn">Run What-if Scenario</button>
+          <button class="secondary" id="saveStravaTokenBtn">Save Strava Token</button>
+          <button class="secondary" id="syncStravaCompletedBtn">Sync Strava Completed</button>
+          <button class="secondary" id="saveGarminTokenBtn">Save Garmin Token</button>
+          <button class="secondary" id="syncGarminPlannedBtn">Sync Garmin Planned</button>
+          <button class="secondary" id="syncGarminCompletedBtn">Sync Garmin Completed</button>
+          <button class="secondary" id="refreshIntegrationsBtn">Refresh Connections</button>
         </div>
-        <div class="notes">Simulation defaults: +5C, +20 min, +0.7 RPE</div>
+        <div id="integrationsStatus" class="notes">No data.</div>
       </div>
 
       <div class="card">
-        <h2>Output</h2>
-        <div id="result">
-          <div class="notes">No prediction yet.</div>
-        </div>
+        <h2>Workout Tracking</h2>
+        <div class="actions"><button class="secondary" id="loadWorkoutsBtn">Load Recent Workouts</button></div>
+        <div id="workoutsTable" class="notes">No workouts loaded.</div>
       </div>
+    </section>
+
+    <section class="card">
+      <h2>Analytics Dashboard</h2>
+      <div class="actions">
+        <button class="secondary" id="refreshAnalyticsBtn">Refresh 30-day Analytics</button>
+      </div>
+      <div class="grid4" id="summaryKpis"></div>
+      <canvas id="analyticsChart" height="120"></canvas>
     </section>
   </main>
 

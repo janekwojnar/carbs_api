@@ -43,18 +43,21 @@ class SessionContext(BaseModel):
     indoor: bool = False
     race_day: bool = False
     weekly_training_load_hours: Optional[float] = Field(default=None, ge=0, le=60)
+    avg_heart_rate_bpm: Optional[float] = Field(default=None, ge=50, le=230)
+    max_heart_rate_bpm: Optional[float] = Field(default=None, ge=80, le=240)
+    avg_power_watts: Optional[float] = Field(default=None, ge=40, le=700)
+    normalized_power_watts: Optional[float] = Field(default=None, ge=40, le=700)
+    avg_cadence: Optional[float] = Field(default=None, ge=20, le=250)
+    distance_km: Optional[float] = Field(default=None, ge=0, le=1000)
+    elevation_gain_m: Optional[float] = Field(default=None, ge=0, le=20000)
+    planned_or_completed: str = Field(default="planned", pattern="^(planned|completed)$")
 
 
 class EnvironmentContext(BaseModel):
     temperature_c: float = Field(ge=-20, le=55)
     humidity_pct: float = Field(ge=0, le=100)
     altitude_m: float = Field(ge=-200, le=6000)
-    terrain_factor: float = Field(
-        default=1.0,
-        ge=0.7,
-        le=1.8,
-        description="Relative terrain difficulty multiplier.",
-    )
+    terrain_factor: float = Field(default=1.0, ge=0.7, le=1.8)
 
 
 class PredictionRequest(BaseModel):

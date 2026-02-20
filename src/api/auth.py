@@ -21,13 +21,26 @@ class AuthRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128)
 
 
+class RegisterRequest(AuthRequest):
+    body_mass_kg: float | None = Field(default=None, ge=30, le=180)
+    body_fat_percent: float | None = Field(default=None, ge=3, le=60)
+    vo2max: float | None = Field(default=None, ge=20, le=95)
+    lactate_threshold_pct: float | None = Field(default=None, ge=60, le=100)
+    gi_tolerance_score: float | None = Field(default=None, ge=0, le=10)
+    default_temperature_c: float | None = Field(default=None, ge=-20, le=55)
+    default_humidity_pct: float | None = Field(default=None, ge=0, le=100)
+    default_altitude_m: float | None = Field(default=None, ge=-200, le=6000)
+    default_terrain_factor: float | None = Field(default=None, ge=0.7, le=1.8)
+    weekly_training_load_hours: float | None = Field(default=None, ge=0, le=60)
+
+
 class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: dict
 
 
-def register_user(payload: AuthRequest) -> AuthResponse:
+def register_user(payload: RegisterRequest) -> AuthResponse:
     existing = get_user_by_email(payload.email)
     if existing is not None:
         raise HTTPException(status_code=409, detail="Account already exists")

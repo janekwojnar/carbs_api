@@ -12,6 +12,8 @@ Elite-grade carb and fueling platform for running, cycling, swimming, hiking, tr
   - Garmin Connect `Connect` button + callback flow (through configurable OAuth/provider bridge)
 - Advanced physiology retained and weighted in calculations:
   - FTP/rFTP, LT1/LT2, threshold pace, gut training, max absorption, sweat/sodium profile
+- Easy aerobic guardrails:
+  - Z1/Z2 non-race sessions are capped to practical carb ranges (prevents race-level g/h recommendations on easy runs)
 - Food intelligence:
   - Built-in endurance foods + custom foods
   - Timed fueling schedule with exact slots and suggested item/serving
@@ -81,6 +83,11 @@ Auth required:
 - `POST /api/v1/predict`
 - `POST /api/v1/simulate`
 - `POST /api/v1/workouts`
+- `GET /api/v1/workouts/{workout_id}`
+- `PUT /api/v1/workouts/{workout_id}`
+- `GET /api/v1/workouts/{workout_id}/fueling`
+- `POST /api/v1/workouts/{workout_id}/fueling`
+- `DELETE /api/v1/workouts/{workout_id}/fueling/{event_id}`
 - `GET /api/v1/workouts`
 - `GET /api/v1/analytics/summary`
 - `GET /api/v1/analytics/charts`

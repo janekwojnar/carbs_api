@@ -6,6 +6,7 @@ let currentProfile = {};
 let foodsCache = [];
 let selectedFoodIds = new Set();
 let latestPrediction = null;
+let workoutsCache = [];
 
 function byId(id) {
   return document.getElementById(id);
@@ -122,9 +123,10 @@ function setupTabs() {
 }
 
 function sportModes(sport) {
-  if (["running", "trail_running", "hiking", "swimming"].includes(sport)) return ["pace", "hr", "rpe"];
+  if (["running", "trail_running", "hiking"].includes(sport)) return ["pace", "hr", "rpe"];
+  if (["swimming"].includes(sport)) return ["hr", "rpe"];
   if (["cycling", "hyrox"].includes(sport)) return ["power", "hr", "rpe"];
-  return ["hr", "rpe", "power"];
+  return ["hr", "rpe"];
 }
 
 function fillSelect(id, options, selected) {
@@ -161,6 +163,11 @@ function updatePlannerVisibility() {
 
   if (!modes.includes("pace")) byId("wrap_target_pace").classList.add("hidden");
   if (!modes.includes("power")) byId("wrap_target_power").classList.add("hidden");
+
+  const powerSports = ["cycling", "hyrox"];
+  const supportsPower = powerSports.includes(sport);
+  byId("wrap_avg_power").classList.toggle("hidden", !completed || !supportsPower);
+  byId("wrap_np").classList.toggle("hidden", !completed || !supportsPower);
 }
 
 function settingsPayload() {
@@ -230,21 +237,41 @@ function deriveRpeFromMode(profile) {
 
   if (mode === "hr") {
     const target = asNum("plan_target_hr");
-    const maxHr = asNum("plan_max_hr") || profile.run_lt2_hr_bpm || profile.bike_lt2_hr_bpm || 180;
-    if (target && maxHr) return Math.min(10, Math.max(1, 2 + (target / maxHr) * 8));
+    const sport = value("plan_sport");
+    const lt1 = ["running", "trail_running", "hiking"].includes(sport) ? profile.run_lt1_hr_bpm : profile.bike_lt1_hr_bpm;
+    const lt2 = ["running", "trail_running", "hiking"].includes(sport) ? profile.run_lt2_hr_bpm : profile.bike_lt2_hr_bpm;
+    const maxHr = asNum("plan_max_hr") || lt2 || 185;
+    if (target && lt1 && lt2 && lt2 > lt1) {
+      if (target <= lt1) return Math.max(1, Math.min(10, 2.5 + ((target - (lt1 - 30)) / 30) * 1.5));
+      if (target <= lt2) return Math.max(1, Math.min(10, 4 + ((target - lt1) / Math.max(1, lt2 - lt1)) * 3.2));
+      return Math.max(1, Math.min(10, 7.2 + ((target - lt2) / Math.max(1, maxHr - lt2)) * 2.3));
+    }
+    if (target && maxHr) return Math.min(10, Math.max(1, 3 + (target / maxHr) * 6.2));
   }
 
   if (mode === "power") {
     const sport = value("plan_sport");
     const target = asNum("plan_target_power");
-    const ftp = sport === "cycling" || sport === "hyrox" ? profile.bike_ftp_w : profile.run_ftp_w;
-    if (target && ftp) return Math.min(10, Math.max(1, 2 + (target / ftp) * 7.8));
+    const ftp = sport === "cycling" || sport === "hyrox" ? profile.bike_ftp_w : null;
+    if (target && ftp) {
+      const r = target / ftp;
+      if (r <= 0.6) return 3.2;
+      if (r <= 0.75) return 4.7;
+      if (r <= 0.9) return 6.2;
+      if (r <= 1.05) return 7.9;
+      return 9.1;
+    }
   }
 
   if (mode === "pace") {
     const target = asNum("plan_target_pace");
     const threshold = profile.run_threshold_pace_sec_per_km;
-    if (target && threshold) return Math.min(10, Math.max(1, 2 + (threshold / target) * 7.5));
+    if (target && threshold) {
+      const ratio = threshold / Math.max(1, target);
+      if (ratio <= 0.85) return 3.3;
+      if (ratio <= 1.0) return 5.8;
+      return 8.2;
+    }
   }
 
   return 6;
@@ -357,6 +384,42 @@ function renderFoodsTable() {
       </table>
     </div>
   `;
+}
+
+function selectedWorkoutId() {
+  const v = Number(value("fuel_workout_id"));
+  return Number.isInteger(v) && v > 0 ? v : null;
+}
+
+function renderWorkoutSelect() {
+  const sel = byId("fuel_workout_id");
+  if (!sel) return;
+  const prev = selectedWorkoutId();
+  sel.innerHTML = "";
+  workoutsCache.forEach((w) => {
+    const opt = document.createElement("option");
+    opt.value = String(w.id);
+    opt.textContent = `${w.id} | ${w.sport} | ${w.status} | ${w.source} | ${w.start_time || w.created_at || ""}`;
+    sel.appendChild(opt);
+  });
+  if (workoutsCache.length === 0) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "No workouts available";
+    sel.appendChild(opt);
+  }
+  if (prev && workoutsCache.some((w) => w.id === prev)) {
+    sel.value = String(prev);
+  }
+}
+
+function syncWorkoutTotalsInputs() {
+  const wid = selectedWorkoutId();
+  const w = workoutsCache.find((x) => x.id === wid);
+  if (!w) return;
+  if (byId("fuel_total_carbs_g")) byId("fuel_total_carbs_g").value = w.completed_carbs_g || 0;
+  if (byId("fuel_total_fluid_ml")) byId("fuel_total_fluid_ml").value = w.completed_fluids_ml || 0;
+  if (byId("fuel_total_sodium_mg")) byId("fuel_total_sodium_mg").value = w.completed_sodium_mg || 0;
 }
 
 function renderFoodPicker() {
@@ -501,21 +564,100 @@ async function saveWorkout() {
 
 async function loadWorkouts() {
   const data = await getJson("/api/v1/workouts?limit=25", true);
-  const rows = (data.items || [])
+  workoutsCache = data.items || [];
+  const rows = workoutsCache
     .map((w) => `
       <tr>
-        <td>${w.sport}</td><td>${w.status}</td><td>${w.source}</td><td>${w.duration_minutes || ""}</td>
+        <td>${w.id}</td><td>${w.sport}</td><td>${w.status}</td><td>${w.source}</td><td>${w.duration_minutes || ""}</td>
         <td>${w.avg_heart_rate_bpm || ""}</td><td>${w.avg_power_watts || ""}</td><td>${w.distance_km || ""}</td><td>${w.completed_carbs_g || ""}</td>
       </tr>`)
     .join("");
   byId("workoutsTable").innerHTML = `
     <div class="table-wrap">
       <table class="table">
-        <thead><tr><th>Sport</th><th>Status</th><th>Source</th><th>Duration</th><th>Avg HR</th><th>Avg Power</th><th>Distance</th><th>Carbs</th></tr></thead>
-        <tbody>${rows || "<tr><td colspan='8'>No workouts yet</td></tr>"}</tbody>
+        <thead><tr><th>ID</th><th>Sport</th><th>Status</th><th>Source</th><th>Duration</th><th>Avg HR</th><th>Avg Power</th><th>Distance</th><th>Carbs</th></tr></thead>
+        <tbody>${rows || "<tr><td colspan='9'>No workouts yet</td></tr>"}</tbody>
       </table>
     </div>
   `;
+  renderWorkoutSelect();
+  syncWorkoutTotalsInputs();
+}
+
+async function loadFuelEvents() {
+  const wid = selectedWorkoutId();
+  if (!wid) {
+    byId("fuelEventsTable").innerHTML = "<p class='muted'>Select workout first.</p>";
+    return;
+  }
+  const data = await getJson(`/api/v1/workouts/${wid}/fueling`, true);
+  const rows = (data.items || [])
+    .map(
+      (e) => `
+      <tr>
+        <td>${e.id}</td><td>${e.minute_offset}</td><td>${e.event_time_iso || ""}</td><td>${e.food_name || ""}</td>
+        <td>${e.carbs_g}</td><td>${e.fluid_ml}</td><td>${e.sodium_mg}</td><td>${e.notes || ""}</td>
+        <td><button class=\"btn-secondary\" data-del-fuel-id=\"${e.id}\">Delete</button></td>
+      </tr>`
+    )
+    .join("");
+  byId("fuelEventsTable").innerHTML = `
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>ID</th><th>Min</th><th>Time</th><th>Food</th><th>Carbs</th><th>Fluid</th><th>Sodium</th><th>Notes</th><th>Action</th></tr></thead>
+        <tbody>${rows || "<tr><td colspan='9'>No fueling events logged.</td></tr>"}</tbody>
+      </table>
+    </div>
+  `;
+  byId("fuelEventsTable").querySelectorAll("[data-del-fuel-id]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = Number(btn.getAttribute("data-del-fuel-id"));
+      try {
+        await requestJson(`/api/v1/workouts/${wid}/fueling/${id}`, {
+          method: "DELETE",
+          headers: authHeaders(false),
+        });
+        await Promise.all([loadFuelEvents(), loadWorkouts(), refreshAnalytics()]);
+      } catch (err) {
+        setPageError(String(err));
+      }
+    });
+  });
+}
+
+async function addFuelEvent() {
+  const wid = selectedWorkoutId();
+  if (!wid) throw new Error("Select workout first.");
+  await sendJson(
+    `/api/v1/workouts/${wid}/fueling`,
+    {
+      minute_offset: asNum("fuel_minute_offset") || 0,
+      event_time_iso: asIsoFromLocal("fuel_event_time"),
+      food_name: value("fuel_food_name"),
+      carbs_g: asNum("fuel_carbs_g") || 0,
+      fluid_ml: asNum("fuel_fluid_ml") || 0,
+      sodium_mg: asNum("fuel_sodium_mg") || 0,
+      notes: value("fuel_notes") || null,
+    },
+    true
+  );
+  await Promise.all([loadFuelEvents(), loadWorkouts(), refreshAnalytics()]);
+}
+
+async function saveWorkoutTotals() {
+  const wid = selectedWorkoutId();
+  if (!wid) throw new Error("Select workout first.");
+  await sendJson(
+    `/api/v1/workouts/${wid}`,
+    {
+      completed_carbs_g: asNum("fuel_total_carbs_g") || 0,
+      completed_fluids_ml: asNum("fuel_total_fluid_ml") || 0,
+      completed_sodium_mg: asNum("fuel_total_sodium_mg") || 0,
+    },
+    true,
+    "PUT"
+  );
+  await Promise.all([loadWorkouts(), refreshAnalytics()]);
 }
 
 async function refreshAnalytics() {
@@ -584,6 +726,7 @@ async function registerUser() {
   currentProfile = data.profile || {};
   fillSettings(currentProfile);
   await Promise.all([loadFoods(), refreshIntegrations(), loadWorkouts(), refreshAnalytics()]);
+  await loadFuelEvents();
 }
 
 async function loginUser() {
@@ -593,6 +736,7 @@ async function loginUser() {
   currentProfile = data.profile || {};
   fillSettings(currentProfile);
   await Promise.all([loadFoods(), refreshIntegrations(), loadWorkouts(), refreshAnalytics()]);
+  await loadFuelEvents();
 }
 
 async function bootstrap() {
@@ -606,6 +750,7 @@ async function bootstrap() {
   currentProfile = me.profile || {};
   fillSettings(currentProfile);
   await Promise.all([loadFoods(), refreshIntegrations(), loadWorkouts(), refreshAnalytics()]);
+  await loadFuelEvents();
 }
 
 function bind(id, fn) {
@@ -655,10 +800,17 @@ function init() {
 
     bind("refreshAnalyticsBtn", refreshAnalytics);
     bind("loadWorkoutsBtn", loadWorkouts);
+    bind("addFuelEventBtn", addFuelEvent);
+    bind("loadFuelEventsBtn", loadFuelEvents);
+    bind("saveWorkoutTotalsBtn", saveWorkoutTotals);
 
     bindChange("plan_sport", updatePlannerVisibility);
     bindChange("plan_status", updatePlannerVisibility);
     bindChange("plan_intensity_mode", updatePlannerVisibility);
+    bindChange("fuel_workout_id", () => {
+      syncWorkoutTotalsInputs();
+      loadFuelEvents().catch((err) => setPageError(String(err)));
+    });
 
     bootstrap().catch((err) => {
       setPageError(String(err));

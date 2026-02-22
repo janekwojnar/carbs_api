@@ -229,11 +229,54 @@
             <button class="btn-secondary" id="loadWorkoutsBtn">Refresh Workouts</button>
           </div>
           <div id="workoutsTable" class="table-wrap"></div>
+
+          <h3>Fueling Log For Imported/Completed Workout</h3>
+          <div class="form-grid three">
+            <label>Workout
+              <select id="fuel_workout_id"></select>
+            </label>
+            <label>Minute Offset
+              <input id="fuel_minute_offset" type="number" value="30" />
+            </label>
+            <label>Event Time (optional)
+              <input id="fuel_event_time" type="datetime-local" />
+            </label>
+            <label>Food/Drink Name
+              <input id="fuel_food_name" type="text" value="Energy Gel 25" />
+            </label>
+            <label>Carbs (g)
+              <input id="fuel_carbs_g" type="number" value="25" />
+            </label>
+            <label>Fluid (ml)
+              <input id="fuel_fluid_ml" type="number" value="0" />
+            </label>
+            <label>Sodium (mg)
+              <input id="fuel_sodium_mg" type="number" value="120" />
+            </label>
+            <label>Notes
+              <input id="fuel_notes" type="text" value="From on-course station" />
+            </label>
+            <label>Workout Total Carbs (g)
+              <input id="fuel_total_carbs_g" type="number" value="0" />
+            </label>
+            <label>Workout Total Fluid (ml)
+              <input id="fuel_total_fluid_ml" type="number" value="0" />
+            </label>
+            <label>Workout Total Sodium (mg)
+              <input id="fuel_total_sodium_mg" type="number" value="0" />
+            </label>
+          </div>
+          <div class="actions">
+            <button class="btn-primary" id="addFuelEventBtn">Add Fuel Event</button>
+            <button class="btn-secondary" id="loadFuelEventsBtn">Load Fuel Events</button>
+            <button class="btn-secondary" id="saveWorkoutTotalsBtn">Save Workout Totals</button>
+          </div>
+          <div id="fuelEventsTable" class="table-wrap"></div>
         </article>
       </div>
     </section>
   </main>
 
-  <script src="/static/app.v5.js?v=20260222-2"></script>
+  <script src="/static/app.v5.js?v=20260222-3"></script>
 </body>
 </html>

@@ -25,10 +25,15 @@ from src.storage.oauth_state import consume_state, create_state, init_oauth_stat
 from src.storage.profile import get_profile, init_profile_db, upsert_profile
 from src.storage.workouts import (
     add_workout,
+    add_workout_fueling_event,
     analytics_chart_series,
     analytics_summary,
+    delete_workout_fueling_event,
+    get_workout,
     init_workout_db,
+    list_workout_fueling_events,
     list_workouts,
+    update_workout,
 )
 
 app = FastAPI(title="Endurance Fuel AI", version="0.5.0")
@@ -100,6 +105,37 @@ class WorkoutCreate(BaseModel):
     completed_sodium_mg: float | None = Field(default=None, ge=0)
     temperature_c: float | None = Field(default=None, ge=-20, le=55)
     humidity_pct: float | None = Field(default=None, ge=0, le=100)
+    notes: str | None = None
+
+
+class WorkoutUpdate(BaseModel):
+    duration_minutes: float | None = Field(default=None, ge=0)
+    intensity_rpe: float | None = Field(default=None, ge=1, le=10)
+    avg_heart_rate_bpm: float | None = Field(default=None, ge=50, le=230)
+    max_heart_rate_bpm: float | None = Field(default=None, ge=80, le=240)
+    avg_power_watts: float | None = Field(default=None, ge=40, le=700)
+    normalized_power_watts: float | None = Field(default=None, ge=40, le=700)
+    avg_cadence: float | None = Field(default=None, ge=20, le=250)
+    distance_km: float | None = Field(default=None, ge=0)
+    elevation_gain_m: float | None = Field(default=None, ge=0)
+    tss: float | None = Field(default=None, ge=0)
+    completed_carbs_g: float | None = Field(default=None, ge=0)
+    completed_fluids_ml: float | None = Field(default=None, ge=0)
+    completed_sodium_mg: float | None = Field(default=None, ge=0)
+    temperature_c: float | None = Field(default=None, ge=-20, le=55)
+    humidity_pct: float | None = Field(default=None, ge=0, le=100)
+    notes: str | None = None
+    start_time: str | None = None
+    status: str | None = Field(default=None, pattern="^(planned|completed)$")
+
+
+class FuelingEventCreate(BaseModel):
+    minute_offset: int = Field(ge=0, le=3000)
+    event_time_iso: str | None = None
+    food_name: str | None = None
+    carbs_g: float = Field(default=0, ge=0, le=300)
+    fluid_ml: float = Field(default=0, ge=0, le=2000)
+    sodium_mg: float = Field(default=0, ge=0, le=6000)
     notes: str | None = None
 
 
@@ -362,6 +398,53 @@ def sync_provider_workouts(
 @app.post("/api/v1/workouts")
 def workout_create(payload: WorkoutCreate, current_user: dict = Depends(require_user)) -> dict:
     return {"item": add_workout(current_user["id"], payload.model_dump())}
+
+
+@app.get("/api/v1/workouts/{workout_id}")
+def workout_get(workout_id: int, current_user: dict = Depends(require_user)) -> dict:
+    item = get_workout(current_user["id"], workout_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    return {"item": item}
+
+
+@app.put("/api/v1/workouts/{workout_id}")
+def workout_put(workout_id: int, payload: WorkoutUpdate, current_user: dict = Depends(require_user)) -> dict:
+    item = update_workout(
+        current_user["id"],
+        workout_id,
+        {k: v for k, v in payload.model_dump().items() if v is not None},
+    )
+    if item is None:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    return {"item": item}
+
+
+@app.get("/api/v1/workouts/{workout_id}/fueling")
+def workout_fueling_get(workout_id: int, current_user: dict = Depends(require_user)) -> dict:
+    if get_workout(current_user["id"], workout_id) is None:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    return {"items": list_workout_fueling_events(current_user["id"], workout_id)}
+
+
+@app.post("/api/v1/workouts/{workout_id}/fueling")
+def workout_fueling_add(
+    workout_id: int,
+    payload: FuelingEventCreate,
+    current_user: dict = Depends(require_user),
+) -> dict:
+    item = add_workout_fueling_event(current_user["id"], workout_id, payload.model_dump())
+    if item is None:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    return {"item": item}
+
+
+@app.delete("/api/v1/workouts/{workout_id}/fueling/{event_id}")
+def workout_fueling_delete(workout_id: int, event_id: int, current_user: dict = Depends(require_user)) -> dict:
+    deleted = delete_workout_fueling_event(current_user["id"], workout_id, event_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Fueling event not found")
+    return {"ok": True}
 
 
 @app.get("/api/v1/workouts")

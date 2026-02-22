@@ -13,6 +13,11 @@ def _conn() -> sqlite3.Connection:
     return conn
 
 
+def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return any(row[1] == column for row in rows)
+
+
 def init_workout_db() -> None:
     with _conn() as conn:
         conn.execute(
@@ -41,6 +46,26 @@ def init_workout_db() -> None:
                 temperature_c REAL,
                 humidity_pct REAL,
                 notes TEXT,
+                updated_at TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        if not _column_exists(conn, "workouts", "updated_at"):
+            conn.execute("ALTER TABLE workouts ADD COLUMN updated_at TEXT")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS workout_fueling_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                workout_id INTEGER NOT NULL,
+                minute_offset INTEGER NOT NULL,
+                event_time_iso TEXT,
+                food_name TEXT,
+                carbs_g REAL NOT NULL DEFAULT 0,
+                fluid_ml REAL NOT NULL DEFAULT 0,
+                sodium_mg REAL NOT NULL DEFAULT 0,
+                notes TEXT,
                 created_at TEXT NOT NULL
             )
             """
@@ -52,6 +77,7 @@ def add_workout(user_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
     data.setdefault("source", "manual")
     data.setdefault("status", "completed")
     data.setdefault("created_at", datetime.now(timezone.utc).isoformat())
+    data.setdefault("updated_at", data["created_at"])
 
     with _conn() as conn:
         cursor = conn.execute(
@@ -61,8 +87,8 @@ def add_workout(user_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
                 intensity_rpe, avg_heart_rate_bpm, max_heart_rate_bpm, avg_power_watts,
                 normalized_power_watts, avg_cadence, distance_km, elevation_gain_m, tss,
                 completed_carbs_g, completed_fluids_ml, completed_sodium_mg, temperature_c,
-                humidity_pct, notes, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                humidity_pct, notes, updated_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id,
@@ -87,11 +113,149 @@ def add_workout(user_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
                 data.get("temperature_c"),
                 data.get("humidity_pct"),
                 data.get("notes"),
+                data.get("updated_at"),
                 data.get("created_at"),
             ),
         )
         wid = cursor.lastrowid
     return {"id": wid, **data}
+
+
+def get_workout(user_id: int, workout_id: int) -> Optional[Dict[str, Any]]:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM workouts WHERE id = ? AND user_id = ?",
+            (workout_id, user_id),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def update_workout(user_id: int, workout_id: int, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    allowed = {
+        "duration_minutes",
+        "intensity_rpe",
+        "avg_heart_rate_bpm",
+        "max_heart_rate_bpm",
+        "avg_power_watts",
+        "normalized_power_watts",
+        "avg_cadence",
+        "distance_km",
+        "elevation_gain_m",
+        "tss",
+        "completed_carbs_g",
+        "completed_fluids_ml",
+        "completed_sodium_mg",
+        "temperature_c",
+        "humidity_pct",
+        "notes",
+        "start_time",
+        "status",
+    }
+    updates = {k: v for k, v in payload.items() if k in allowed}
+    if not updates:
+        return get_workout(user_id, workout_id)
+
+    updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+    set_clause = ", ".join([f"{k} = ?" for k in updates.keys()])
+    params = list(updates.values()) + [workout_id, user_id]
+    with _conn() as conn:
+        cur = conn.execute(
+            f"UPDATE workouts SET {set_clause} WHERE id = ? AND user_id = ?",
+            tuple(params),
+        )
+        if cur.rowcount == 0:
+            return None
+    return get_workout(user_id, workout_id)
+
+
+def list_workout_fueling_events(user_id: int, workout_id: int) -> List[Dict[str, Any]]:
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM workout_fueling_events
+            WHERE user_id = ? AND workout_id = ?
+            ORDER BY minute_offset ASC, id ASC
+            """,
+            (user_id, workout_id),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_workout_fueling_event(user_id: int, workout_id: int, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if get_workout(user_id, workout_id) is None:
+        return None
+    now = datetime.now(timezone.utc).isoformat()
+    data = {
+        "minute_offset": int(payload.get("minute_offset", 0)),
+        "event_time_iso": payload.get("event_time_iso"),
+        "food_name": payload.get("food_name"),
+        "carbs_g": float(payload.get("carbs_g") or 0),
+        "fluid_ml": float(payload.get("fluid_ml") or 0),
+        "sodium_mg": float(payload.get("sodium_mg") or 0),
+        "notes": payload.get("notes"),
+        "created_at": now,
+    }
+    with _conn() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO workout_fueling_events (
+                user_id, workout_id, minute_offset, event_time_iso, food_name,
+                carbs_g, fluid_ml, sodium_mg, notes, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                user_id,
+                workout_id,
+                data["minute_offset"],
+                data["event_time_iso"],
+                data["food_name"],
+                data["carbs_g"],
+                data["fluid_ml"],
+                data["sodium_mg"],
+                data["notes"],
+                data["created_at"],
+            ),
+        )
+        event_id = cursor.lastrowid
+    recalc_workout_fueling_totals(user_id, workout_id)
+    return {"id": event_id, "user_id": user_id, "workout_id": workout_id, **data}
+
+
+def delete_workout_fueling_event(user_id: int, workout_id: int, event_id: int) -> bool:
+    with _conn() as conn:
+        cur = conn.execute(
+            "DELETE FROM workout_fueling_events WHERE id = ? AND workout_id = ? AND user_id = ?",
+            (event_id, workout_id, user_id),
+        )
+        ok = cur.rowcount > 0
+    if ok:
+        recalc_workout_fueling_totals(user_id, workout_id)
+    return ok
+
+
+def recalc_workout_fueling_totals(user_id: int, workout_id: int) -> None:
+    with _conn() as conn:
+        row = conn.execute(
+            """
+            SELECT
+                COALESCE(SUM(carbs_g), 0) AS carbs_g,
+                COALESCE(SUM(fluid_ml), 0) AS fluid_ml,
+                COALESCE(SUM(sodium_mg), 0) AS sodium_mg
+            FROM workout_fueling_events
+            WHERE user_id = ? AND workout_id = ?
+            """,
+            (user_id, workout_id),
+        ).fetchone()
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            """
+            UPDATE workouts
+            SET completed_carbs_g = ?, completed_fluids_ml = ?, completed_sodium_mg = ?, updated_at = ?
+            WHERE id = ? AND user_id = ?
+            """,
+            (row["carbs_g"], row["fluid_ml"], row["sodium_mg"], now, workout_id, user_id),
+        )
 
 
 def list_workouts(

@@ -10,11 +10,12 @@ from pydantic import BaseModel, Field
 
 from src.api.auth import AuthRequest, RegisterRequest, login_user, register_user, require_user
 from src.core.engine import predict, simulate
-from src.core.models import PredictionRequest, SimulationRequest
+from src.core.models import FoodItem, PredictionRequest, SimulationRequest
 from src.integrations.connectors import integration_status, pull_workouts
 from src.integrations.providers import IntegrationError
 from src.storage.audit import init_db, read_audit, write_audit
 from src.storage.auth import init_auth_db
+from src.storage.foods import add_custom_food, delete_custom_food, init_food_db, list_foods, resolve_foods_for_plan
 from src.storage.integrations import get_token, init_integrations_db, upsert_token
 from src.storage.profile import get_profile, init_profile_db, upsert_profile
 from src.storage.workouts import (
@@ -25,7 +26,7 @@ from src.storage.workouts import (
     list_workouts,
 )
 
-app = FastAPI(title="Endurance Fuel AI", version="0.3.0")
+app = FastAPI(title="Endurance Fuel AI", version="0.4.0")
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
@@ -44,6 +45,15 @@ class ProfileUpdate(BaseModel):
     default_terrain_factor: float | None = Field(default=None, ge=0.7, le=1.8)
     weekly_training_load_hours: float | None = Field(default=None, ge=0, le=60)
     default_indoor: bool | None = None
+    bike_ftp_w: float | None = Field(default=None, ge=80, le=600)
+    run_ftp_w: float | None = Field(default=None, ge=80, le=600)
+    run_threshold_pace_sec_per_km: float | None = Field(default=None, ge=120, le=600)
+    bike_lt1_hr_bpm: float | None = Field(default=None, ge=80, le=210)
+    bike_lt2_hr_bpm: float | None = Field(default=None, ge=90, le=220)
+    run_lt1_hr_bpm: float | None = Field(default=None, ge=80, le=210)
+    run_lt2_hr_bpm: float | None = Field(default=None, ge=90, le=220)
+    max_carb_absorption_g_h: float | None = Field(default=None, ge=40, le=160)
+    gut_training_level: float | None = Field(default=None, ge=0, le=10)
 
 
 class WorkoutCreate(BaseModel):
@@ -76,6 +86,16 @@ class IntegrationTokenIn(BaseModel):
     expires_at: str | None = None
 
 
+class FoodCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=80)
+    category: str = Field(min_length=2, max_length=30)
+    serving_desc: str = Field(min_length=1, max_length=60)
+    carbs_g: float = Field(ge=0, le=200)
+    sodium_mg: float = Field(ge=0, le=5000)
+    fluid_ml: float = Field(ge=0, le=1500)
+    caffeine_mg: float = Field(default=0, ge=0, le=500)
+
+
 @app.on_event("startup")
 def startup() -> None:
     init_db()
@@ -83,6 +103,7 @@ def startup() -> None:
     init_profile_db()
     init_workout_db()
     init_integrations_db()
+    init_food_db()
 
 
 @app.get("/", include_in_schema=False)
@@ -95,7 +116,7 @@ app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
 @app.get("/api/v1/health")
 def health() -> dict:
-    return {"ok": True, "service": "endurance-fuel-ai", "version": "0.3.1"}
+    return {"ok": True, "service": "endurance-fuel-ai", "version": "0.4.0"}
 
 
 @app.post("/api/v1/auth/register")
@@ -116,6 +137,15 @@ def register(payload: RegisterRequest) -> dict:
             "default_altitude_m",
             "default_terrain_factor",
             "weekly_training_load_hours",
+            "bike_ftp_w",
+            "run_ftp_w",
+            "run_threshold_pace_sec_per_km",
+            "bike_lt1_hr_bpm",
+            "bike_lt2_hr_bpm",
+            "run_lt1_hr_bpm",
+            "run_lt2_hr_bpm",
+            "max_carb_absorption_g_h",
+            "gut_training_level",
         }
         and v is not None
     }
@@ -150,6 +180,27 @@ def profile_put(payload: ProfileUpdate, current_user: dict = Depends(require_use
         payload={k: v for k, v in payload.model_dump().items() if v is not None},
     )
     return {"profile": profile}
+
+
+@app.get("/api/v1/foods")
+def foods_get(
+    scope: str = Query(default="all", pattern="^(all|builtin|custom)$"),
+    current_user: dict = Depends(require_user),
+) -> dict:
+    return {"items": list_foods(current_user["id"], scope=scope)}
+
+
+@app.post("/api/v1/foods")
+def foods_create(payload: FoodCreate, current_user: dict = Depends(require_user)) -> dict:
+    return {"item": add_custom_food(current_user["id"], payload.model_dump())}
+
+
+@app.delete("/api/v1/foods/{food_id}")
+def foods_delete(food_id: int, current_user: dict = Depends(require_user)) -> dict:
+    deleted = delete_custom_food(current_user["id"], food_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Food not found")
+    return {"ok": True}
 
 
 @app.get("/api/v1/integrations")
@@ -230,7 +281,9 @@ def analytics_charts_get(
 
 @app.post("/api/v1/predict")
 def predict_endpoint(req: PredictionRequest, current_user: dict = Depends(require_user)) -> dict:
-    res = predict(req)
+    foods_raw = resolve_foods_for_plan(current_user["id"], req.selected_food_ids)
+    foods = [FoodItem(**f) for f in foods_raw]
+    res = predict(req, foods=foods)
     write_audit(
         recommendation_id=res.recommendation_id,
         user_id=current_user["id"],
@@ -247,7 +300,9 @@ def predict_endpoint(req: PredictionRequest, current_user: dict = Depends(requir
 
 @app.post("/api/v1/simulate")
 def simulate_endpoint(req: SimulationRequest, current_user: dict = Depends(require_user)) -> dict:
-    res = simulate(req)
+    foods_raw = resolve_foods_for_plan(current_user["id"], req.base_request.selected_food_ids)
+    foods = [FoodItem(**f) for f in foods_raw]
+    res = simulate(req, foods=foods)
     write_audit(
         recommendation_id=res.simulated.recommendation_id,
         user_id=current_user["id"],

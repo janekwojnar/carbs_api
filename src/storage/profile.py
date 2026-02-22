@@ -21,6 +21,15 @@ DEFAULT_PROFILE: Dict[str, Any] = {
     "default_terrain_factor": 1.0,
     "weekly_training_load_hours": 8.0,
     "default_indoor": 0,
+    "bike_ftp_w": 280.0,
+    "run_ftp_w": 320.0,
+    "run_threshold_pace_sec_per_km": 240.0,
+    "bike_lt1_hr_bpm": 145.0,
+    "bike_lt2_hr_bpm": 172.0,
+    "run_lt1_hr_bpm": 150.0,
+    "run_lt2_hr_bpm": 178.0,
+    "max_carb_absorption_g_h": 110.0,
+    "gut_training_level": 6.0,
 }
 
 
@@ -49,10 +58,34 @@ def init_profile_db() -> None:
                 default_terrain_factor REAL,
                 weekly_training_load_hours REAL,
                 default_indoor INTEGER,
+                bike_ftp_w REAL,
+                run_ftp_w REAL,
+                run_threshold_pace_sec_per_km REAL,
+                bike_lt1_hr_bpm REAL,
+                bike_lt2_hr_bpm REAL,
+                run_lt1_hr_bpm REAL,
+                run_lt2_hr_bpm REAL,
+                max_carb_absorption_g_h REAL,
+                gut_training_level REAL,
                 updated_at TEXT NOT NULL
             )
             """
         )
+        for col, ctype in [
+            ("bike_ftp_w", "REAL"),
+            ("run_ftp_w", "REAL"),
+            ("run_threshold_pace_sec_per_km", "REAL"),
+            ("bike_lt1_hr_bpm", "REAL"),
+            ("bike_lt2_hr_bpm", "REAL"),
+            ("run_lt1_hr_bpm", "REAL"),
+            ("run_lt2_hr_bpm", "REAL"),
+            ("max_carb_absorption_g_h", "REAL"),
+            ("gut_training_level", "REAL"),
+        ]:
+            row = conn.execute("PRAGMA table_info(user_profiles)").fetchall()
+            existing = {r[1] for r in row}
+            if col not in existing:
+                conn.execute(f"ALTER TABLE user_profiles ADD COLUMN {col} {ctype}")
 
 
 def upsert_profile(user_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -66,7 +99,9 @@ def upsert_profile(user_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
                 gi_tolerance_score, sweat_rate_l_h, sodium_loss_mg_l, default_temperature_c,
                 default_humidity_pct, default_altitude_m, default_terrain_factor,
                 weekly_training_load_hours, default_indoor, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                , bike_ftp_w, run_ftp_w, run_threshold_pace_sec_per_km, bike_lt1_hr_bpm, bike_lt2_hr_bpm
+                , run_lt1_hr_bpm, run_lt2_hr_bpm, max_carb_absorption_g_h, gut_training_level
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET
                 body_mass_kg=excluded.body_mass_kg,
                 body_fat_percent=excluded.body_fat_percent,
@@ -81,6 +116,15 @@ def upsert_profile(user_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
                 default_terrain_factor=excluded.default_terrain_factor,
                 weekly_training_load_hours=excluded.weekly_training_load_hours,
                 default_indoor=excluded.default_indoor,
+                bike_ftp_w=excluded.bike_ftp_w,
+                run_ftp_w=excluded.run_ftp_w,
+                run_threshold_pace_sec_per_km=excluded.run_threshold_pace_sec_per_km,
+                bike_lt1_hr_bpm=excluded.bike_lt1_hr_bpm,
+                bike_lt2_hr_bpm=excluded.bike_lt2_hr_bpm,
+                run_lt1_hr_bpm=excluded.run_lt1_hr_bpm,
+                run_lt2_hr_bpm=excluded.run_lt2_hr_bpm,
+                max_carb_absorption_g_h=excluded.max_carb_absorption_g_h,
+                gut_training_level=excluded.gut_training_level,
                 updated_at=excluded.updated_at
             """,
             (
@@ -99,6 +143,15 @@ def upsert_profile(user_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
                 data["weekly_training_load_hours"],
                 int(bool(data["default_indoor"])),
                 data["updated_at"],
+                data["bike_ftp_w"],
+                data["run_ftp_w"],
+                data["run_threshold_pace_sec_per_km"],
+                data["bike_lt1_hr_bpm"],
+                data["bike_lt2_hr_bpm"],
+                data["run_lt1_hr_bpm"],
+                data["run_lt2_hr_bpm"],
+                data["max_carb_absorption_g_h"],
+                data["gut_training_level"],
             ),
         )
     return get_profile(user_id)

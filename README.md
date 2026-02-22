@@ -5,10 +5,15 @@ Web platform for advanced carb/fueling analysis, planning, tracking, and predict
 ## Major features now
 - Email/password auth (free for all users)
 - Profile onboarding defaults saved once and auto-filled later
-- Advanced prediction inputs: avg HR, max HR, avg power, normalized power, cadence, distance, elevation
+- Advanced prediction inputs: avg HR, max HR, avg power, normalized power, cadence, distance, elevation, FTP, rFTP, LT1/LT2, max carb absorption, sweat/sodium profile
 - Multi-strategy fueling output + confidence + explainability
+- Time-based fueling schedule with exact intake/drink timing slots
 - Workout tracking (planned/completed) with metrics and fueling actuals
 - Analytics dashboard + time-series graphs (HR, power, carbs, duration)
+- Food intelligence:
+  - Broad built-in endurance foods database (gels, isotonic drinks, chews, gummy bears, pizza, coke, etc.)
+  - Custom user food entries
+  - Food-ID-based schedule planning
 - Integration tokens + sync routes:
   - Strava completed workouts
   - Garmin planned/completed via configurable Garmin proxy endpoint
@@ -44,6 +49,9 @@ Auth required:
 - `GET /api/v1/auth/me`
 - `GET /api/v1/profile`
 - `PUT /api/v1/profile`
+- `GET /api/v1/foods`
+- `POST /api/v1/foods`
+- `DELETE /api/v1/foods/{food_id}`
 - `POST /api/v1/predict`
 - `POST /api/v1/simulate`
 - `POST /api/v1/workouts`

@@ -32,6 +32,15 @@ class RegisterRequest(AuthRequest):
     default_altitude_m: float | None = Field(default=None, ge=-200, le=6000)
     default_terrain_factor: float | None = Field(default=None, ge=0.7, le=1.8)
     weekly_training_load_hours: float | None = Field(default=None, ge=0, le=60)
+    bike_ftp_w: float | None = Field(default=None, ge=80, le=600)
+    run_ftp_w: float | None = Field(default=None, ge=80, le=600)
+    run_threshold_pace_sec_per_km: float | None = Field(default=None, ge=120, le=600)
+    bike_lt1_hr_bpm: float | None = Field(default=None, ge=80, le=210)
+    bike_lt2_hr_bpm: float | None = Field(default=None, ge=90, le=220)
+    run_lt1_hr_bpm: float | None = Field(default=None, ge=80, le=210)
+    run_lt2_hr_bpm: float | None = Field(default=None, ge=90, le=220)
+    max_carb_absorption_g_h: float | None = Field(default=None, ge=40, le=160)
+    gut_training_level: float | None = Field(default=None, ge=0, le=10)
 
 
 class AuthResponse(BaseModel):

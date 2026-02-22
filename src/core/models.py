@@ -34,6 +34,17 @@ class UserProfile(BaseModel):
     injury_or_illness_flag: bool = False
     sleep_hours: Optional[float] = Field(default=None, ge=0, le=14)
     hrv_score: Optional[float] = Field(default=None, ge=0, le=100)
+    sweat_rate_l_h: Optional[float] = Field(default=None, ge=0.2, le=4.0)
+    sodium_loss_mg_l: Optional[float] = Field(default=None, ge=200, le=3000)
+    bike_ftp_w: Optional[float] = Field(default=None, ge=80, le=600)
+    run_ftp_w: Optional[float] = Field(default=None, ge=80, le=600)
+    run_threshold_pace_sec_per_km: Optional[float] = Field(default=None, ge=120, le=600)
+    bike_lt1_hr_bpm: Optional[float] = Field(default=None, ge=80, le=210)
+    bike_lt2_hr_bpm: Optional[float] = Field(default=None, ge=90, le=220)
+    run_lt1_hr_bpm: Optional[float] = Field(default=None, ge=80, le=210)
+    run_lt2_hr_bpm: Optional[float] = Field(default=None, ge=90, le=220)
+    max_carb_absorption_g_h: Optional[float] = Field(default=None, ge=40, le=160)
+    gut_training_level: float = Field(default=5.0, ge=0, le=10)
 
 
 class SessionContext(BaseModel):
@@ -51,6 +62,7 @@ class SessionContext(BaseModel):
     distance_km: Optional[float] = Field(default=None, ge=0, le=1000)
     elevation_gain_m: Optional[float] = Field(default=None, ge=0, le=20000)
     planned_or_completed: str = Field(default="planned", pattern="^(planned|completed)$")
+    planned_start_iso: Optional[str] = None
 
 
 class EnvironmentContext(BaseModel):
@@ -65,6 +77,7 @@ class PredictionRequest(BaseModel):
     session: SessionContext
     environment: EnvironmentContext
     science_mode: bool = True
+    selected_food_ids: Optional[List[int]] = None
 
 
 class StrategyRecommendation(BaseModel):
@@ -78,6 +91,29 @@ class StrategyRecommendation(BaseModel):
     gi_risk_score: float
 
 
+class FuelingAction(BaseModel):
+    minute_offset: int
+    action: str
+    food_name: str
+    serving: str
+    carbs_g: float
+    sodium_mg: float
+    fluid_ml: float
+    notes: str
+
+
+class FoodItem(BaseModel):
+    id: int
+    name: str
+    category: str
+    serving_desc: str
+    carbs_g: float
+    sodium_mg: float
+    fluid_ml: float
+    caffeine_mg: float = 0
+    is_builtin: bool = True
+
+
 class PredictionResponse(BaseModel):
     recommendation_id: str
     strategies: List[StrategyRecommendation]
@@ -85,6 +121,7 @@ class PredictionResponse(BaseModel):
     confidence_high: float
     uncertainty_notes: List[str]
     rationale: List[str]
+    fueling_schedule: List[FuelingAction] = []
 
 
 class SimulationRequest(BaseModel):

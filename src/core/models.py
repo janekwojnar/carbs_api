@@ -63,6 +63,10 @@ class SessionContext(BaseModel):
     elevation_gain_m: Optional[float] = Field(default=None, ge=0, le=20000)
     planned_or_completed: str = Field(default="planned", pattern="^(planned|completed)$")
     planned_start_iso: Optional[str] = None
+    intensity_mode: str = Field(default="rpe", pattern="^(rpe|hr|pace|power)$")
+    target_heart_rate_bpm: Optional[float] = Field(default=None, ge=60, le=220)
+    target_power_watts: Optional[float] = Field(default=None, ge=50, le=700)
+    target_pace_sec_per_km: Optional[float] = Field(default=None, ge=120, le=900)
 
 
 class EnvironmentContext(BaseModel):

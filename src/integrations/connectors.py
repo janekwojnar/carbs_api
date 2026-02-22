@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+from src.integrations.oauth import oauth_ready
 from src.integrations.providers import fetch_garmin_workouts, fetch_strava_workouts
 from src.storage.integrations import list_connections
 
@@ -9,8 +10,9 @@ from src.storage.integrations import list_connections
 def integration_status(user_id: int) -> List[Dict[str, Any]]:
     base = list_connections(user_id)
     for item in base:
+        item["oauth_ready"] = oauth_ready(item["provider"])
         if item["provider"] == "strava":
-            item["supports"] = ["completed", "planned_placeholder"]
+            item["supports"] = ["completed"]
         if item["provider"] == "garmin_connect":
             item["supports"] = ["planned", "completed"]
     return base

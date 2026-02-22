@@ -1,49 +1,75 @@
-# Endurance Fuel AI
+# FuelOS Endurance
 
-Web platform for advanced carb/fueling analysis, planning, tracking, and prediction for endurance/hybrid sports.
+Elite-grade carb and fueling platform for running, cycling, swimming, hiking, trail, and hybrid endurance sessions.
 
-## Major features now
-- Email/password auth (free for all users)
-- Profile onboarding defaults saved once and auto-filled later
-- Advanced prediction inputs: avg HR, max HR, avg power, normalized power, cadence, distance, elevation, FTP, rFTP, LT1/LT2, max carb absorption, sweat/sodium profile
-- Multi-strategy fueling output + confidence + explainability
-- Time-based fueling schedule with exact intake/drink timing slots
-- Workout tracking (planned/completed) with metrics and fueling actuals
-- Analytics dashboard + time-series graphs (HR, power, carbs, duration)
+## What changed in this version
+- Full UI restructure:
+  - User Settings separated from Session Planner
+  - Sport-specific session logic (only relevant intensity controls shown)
+  - Cleaner information architecture and visuals
+- OAuth connect flows (no manual token input in UI):
+  - Strava `Connect` button + callback flow
+  - Garmin Connect `Connect` button + callback flow (through configurable OAuth/provider bridge)
+- Advanced physiology retained and weighted in calculations:
+  - FTP/rFTP, LT1/LT2, threshold pace, gut training, max absorption, sweat/sodium profile
 - Food intelligence:
-  - Broad built-in endurance foods database (gels, isotonic drinks, chews, gummy bears, pizza, coke, etc.)
-  - Custom user food entries
-  - Food-ID-based schedule planning
-- Integration tokens + sync routes:
-  - Strava completed workouts
-  - Garmin planned/completed via configurable Garmin proxy endpoint
+  - Built-in endurance foods + custom foods
+  - Timed fueling schedule with exact slots and suggested item/serving
 
 ## Run locally
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+
 export JWT_SECRET='replace-with-long-random-secret'
 export DB_PATH='/tmp/endurance.sqlite3'
-# Optional for Garmin sync bridge
+
+# For OAuth connect flows
+export APP_BASE_URL='http://127.0.0.1:8000'
+export STRAVA_CLIENT_ID='your-strava-client-id'
+export STRAVA_CLIENT_SECRET='your-strava-client-secret'
+
+# Garmin OAuth bridge/provider config (optional but needed for Garmin connect)
+export GARMIN_CLIENT_ID='your-garmin-client-id'
+export GARMIN_CLIENT_SECRET='your-garmin-client-secret'
+export GARMIN_OAUTH_AUTH_URL='https://your-garmin-auth-url'
+export GARMIN_OAUTH_TOKEN_URL='https://your-garmin-token-url'
+export GARMIN_SCOPE='activity:read'
+
+# Garmin workout pull bridge (optional)
 export GARMIN_PROXY_URL='https://your-garmin-proxy.example.com'
+
 uvicorn src.api.main:app --reload --port 8000
 ```
 
 Open: http://localhost:8000
 
-## Public deploy (Render)
-- Push to GitHub
-- Render uses `render.yaml`
-- Set env var `JWT_SECRET`
-- Optional: set `GARMIN_PROXY_URL`
-- Keep `DB_PATH` on persistent disk (`/var/data/endurance.sqlite3`) for durable accounts/data.
+## Deploy (Render)
+Use `render.yaml` and set env vars:
+- Required:
+  - `JWT_SECRET`
+  - `APP_BASE_URL` (public app URL, e.g. `https://your-app.onrender.com`)
+- Strongly recommended:
+  - `DB_PATH=/var/data/endurance.sqlite3` with mounted disk
+- Strava OAuth:
+  - `STRAVA_CLIENT_ID`
+  - `STRAVA_CLIENT_SECRET`
+- Garmin OAuth bridge:
+  - `GARMIN_CLIENT_ID`
+  - `GARMIN_CLIENT_SECRET`
+  - `GARMIN_OAUTH_AUTH_URL`
+  - `GARMIN_OAUTH_TOKEN_URL`
+  - `GARMIN_SCOPE` (optional)
+- Garmin workout sync bridge:
+  - `GARMIN_PROXY_URL` (optional)
 
 ## API overview
 Public:
 - `GET /api/v1/health`
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
+- `GET /api/v1/integrations/{provider}/oauth/callback`
 
 Auth required:
 - `GET /api/v1/auth/me`
@@ -59,19 +85,11 @@ Auth required:
 - `GET /api/v1/analytics/summary`
 - `GET /api/v1/analytics/charts`
 - `GET /api/v1/integrations`
-- `POST /api/v1/integrations/{provider}/token`
+- `POST /api/v1/integrations/{provider}/oauth/start`
 - `POST /api/v1/integrations/{provider}/sync?kind=planned|completed`
 - `GET /api/v1/audit`
 
-## Integration notes
-- Strava: requires user access token.
-- Garmin Connect: there is no stable public direct consumer API. This app supports Garmin sync through a partner/proxy endpoint (`GARMIN_PROXY_URL`).
-
-## Security and auth behavior
-- Passwords are never stored in plain text. They are hashed (PBKDF2 + salt) in the database.
-- Email and session token are stored in browser local storage for session continuity.
-- If login state appears lost in production, verify persistent storage is configured (`DB_PATH` on mounted disk).
-
-## UI troubleshooting
-- If buttons do not respond, check the top-page error box for initialization issues.
-- Hard refresh browser cache after deployment (`Cmd+Shift+R` / `Ctrl+F5`) to clear stale JavaScript.
+## Security
+- Passwords are hashed (PBKDF2 + salt), never stored as plain text.
+- Session token is stored in browser localStorage.
+- OAuth callback uses expiring state records to prevent CSRF replay.

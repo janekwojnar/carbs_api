@@ -3,175 +3,233 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Endurance Fuel AI</title>
+  <title>FuelOS Endurance</title>
   <link rel="stylesheet" href="/static/style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <main class="wrap">
-    <section class="hero">
-      <h1>Endurance Fuel AI</h1>
-      <div class="subtitle">Advanced fueling intelligence with thresholds/FTP physiology, custom food database, and exact timed fuel plan.</div>
-      <div id="pageError"></div>
-    </section>
-
-    <section class="card">
-      <h2>Account & Advanced Defaults</h2>
-      <div class="form-grid four">
-        <label>Email<input id="email" type="email" placeholder="you@example.com" /></label>
-        <label>Password<input id="password" type="password" placeholder="Min 8 chars" /></label>
-        <label>Mass (kg)<input id="reg_mass" type="number" value="72" /></label>
-        <label>Body Fat %<input id="reg_bf" type="number" value="15" /></label>
-        <label>VO2max<input id="reg_vo2" type="number" value="55" /></label>
-        <label>LT %<input id="reg_lt" type="number" value="86" /></label>
-        <label>GI tolerance<input id="reg_gi" type="number" step="0.1" value="6" /></label>
-        <label>Bike FTP (W)<input id="reg_bike_ftp" type="number" value="300" /></label>
-        <label>Run FTP (W)<input id="reg_run_ftp" type="number" value="340" /></label>
-        <label>Run Threshold Pace sec/km<input id="reg_run_thr_pace" type="number" value="235" /></label>
-        <label>Bike LT1 HR<input id="reg_bike_lt1" type="number" value="145" /></label>
-        <label>Bike LT2 HR<input id="reg_bike_lt2" type="number" value="172" /></label>
-        <label>Run LT1 HR<input id="reg_run_lt1" type="number" value="150" /></label>
-        <label>Run LT2 HR<input id="reg_run_lt2" type="number" value="178" /></label>
-        <label>Max Carb Absorb g/h<input id="reg_max_carb" type="number" value="115" /></label>
-        <label>Gut Training Level<input id="reg_gut" type="number" step="0.1" value="6" /></label>
-        <label>Sweat Rate L/h<input id="reg_sweat" type="number" step="0.01" value="0.95" /></label>
-        <label>Sodium Loss mg/L<input id="reg_sodium_loss" type="number" value="900" /></label>
-        <label>Default Temp C<input id="reg_temp" type="number" value="20" /></label>
-        <label>Default Humidity %<input id="reg_hum" type="number" value="55" /></label>
-        <label>Default Altitude m<input id="reg_alt" type="number" value="100" /></label>
-        <label>Default Terrain<input id="reg_terrain" type="number" step="0.01" value="1" /></label>
-        <label>Weekly Load h<input id="reg_load" type="number" step="0.1" value="10" /></label>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>FuelOS Endurance</h1>
+        <p class="subtitle">Elite fueling intelligence for Ironman, marathon, ultra, and high-performance endurance blocks.</p>
       </div>
-      <div class="actions">
-        <button class="primary" id="registerBtn">Register</button>
-        <button class="secondary" id="loginBtn">Login</button>
-        <button class="secondary" id="saveProfileBtn">Save Profile Defaults</button>
-        <button class="secondary" id="logoutBtn">Logout</button>
-      </div>
-      <div class="notes" id="authState">Not logged in</div>
-    </section>
+      <div class="auth-pill" id="authPill">Not logged in</div>
+    </header>
 
-    <section class="layout">
-      <div class="card">
-        <h2>Prediction Engine</h2>
-        <div class="form-grid four">
-          <label>Sport
-            <select id="sport">
-              <option>running</option><option>cycling</option><option>swimming</option><option>hiking</option>
-              <option>trail_running</option><option>gym</option><option>hiit</option><option>hyrox</option>
-            </select>
-          </label>
-          <label>Duration min<input id="duration" type="number" value="90" /></label>
-          <label>Start Time ISO<input id="start_iso" type="text" placeholder="2026-06-12T07:00:00+02:00" /></label>
-          <label>Intensity RPE<input id="rpe" type="number" step="0.1" value="7" /></label>
+    <div id="pageError"></div>
 
-          <label>Mass kg<input id="mass" type="number" value="72" /></label>
-          <label>Body fat %<input id="bf" type="number" value="15" /></label>
-          <label>VO2max<input id="vo2" type="number" value="55" /></label>
-          <label>Lactate threshold %<input id="lt" type="number" value="86" /></label>
+    <nav class="tabs" id="tabsNav">
+      <button class="tab-btn active" data-tab="planner">Session Planner</button>
+      <button class="tab-btn" data-tab="settings">User Settings</button>
+      <button class="tab-btn" data-tab="foods">Food Database</button>
+      <button class="tab-btn" data-tab="integrations">Integrations</button>
+      <button class="tab-btn" data-tab="analytics">Analytics</button>
+    </nav>
 
-          <label>GI tolerance<input id="gi" type="number" step="0.1" value="6" /></label>
-          <label>Stress<input id="stress" type="number" step="0.1" value="3" /></label>
-          <label>Sleep h<input id="sleep" type="number" step="0.1" value="7.5" /></label>
-          <label>HRV<input id="hrv" type="number" value="60" /></label>
+    <section class="panel active" id="panel-planner">
+      <div class="grid-two">
+        <article class="card">
+          <h2>Session Setup</h2>
+          <div class="form-grid three">
+            <label>Sport
+              <select id="plan_sport">
+                <option value="running">Running</option>
+                <option value="cycling">Cycling</option>
+                <option value="swimming">Swimming</option>
+                <option value="hiking">Hiking</option>
+                <option value="trail_running">Trail Running</option>
+                <option value="gym">Gym</option>
+                <option value="hiit">HIIT</option>
+                <option value="hyrox">Hyrox</option>
+              </select>
+            </label>
+            <label>Session Type
+              <select id="plan_status">
+                <option value="planned">Planned</option>
+                <option value="completed">Completed</option>
+              </select>
+            </label>
+            <label>Duration (min)<input id="plan_duration" type="number" value="90" /></label>
 
-          <label>Bike FTP W<input id="bike_ftp" type="number" value="300" /></label>
-          <label>Run FTP W<input id="run_ftp" type="number" value="340" /></label>
-          <label>Run Thr Pace s/km<input id="run_thr_pace" type="number" value="235" /></label>
-          <label>Max Carb g/h<input id="max_carb" type="number" value="115" /></label>
+            <label>Start Time
+              <input id="plan_start_time" type="datetime-local" />
+            </label>
+            <label>Race Day
+              <select id="plan_race_day"><option value="false">No</option><option value="true">Yes</option></select>
+            </label>
+            <label>Indoor
+              <select id="plan_indoor"><option value="false">No</option><option value="true">Yes</option></select>
+            </label>
 
-          <label>Bike LT1 HR<input id="bike_lt1" type="number" value="145" /></label>
-          <label>Bike LT2 HR<input id="bike_lt2" type="number" value="172" /></label>
-          <label>Run LT1 HR<input id="run_lt1" type="number" value="150" /></label>
-          <label>Run LT2 HR<input id="run_lt2" type="number" value="178" /></label>
+            <label>Intensity Mode
+              <select id="plan_intensity_mode"></select>
+            </label>
+            <label id="wrap_rpe">RPE Target<input id="plan_rpe" type="number" step="0.1" value="7" /></label>
+            <label id="wrap_target_pace">Target Pace (sec/km)<input id="plan_target_pace" type="number" value="260" /></label>
+            <label id="wrap_target_hr">Target HR (bpm)<input id="plan_target_hr" type="number" value="155" /></label>
+            <label id="wrap_target_power">Target Power (W)<input id="plan_target_power" type="number" value="250" /></label>
 
-          <label>Sweat L/h<input id="sweat" type="number" step="0.01" value="0.95" /></label>
-          <label>Sodium mg/L<input id="sodium_loss" type="number" value="900" /></label>
-          <label>Gut training<input id="gut" type="number" step="0.1" value="6" /></label>
-          <label>Weekly load h<input id="load" type="number" step="0.1" value="10" /></label>
+            <label class="completed-only" id="wrap_avg_hr">Average HR (bpm)<input id="plan_avg_hr" type="number" value="152" /></label>
+            <label id="wrap_max_hr">Max HR (bpm)<input id="plan_max_hr" type="number" value="185" /></label>
+            <label class="completed-only" id="wrap_avg_power">Average Power (W)<input id="plan_avg_power" type="number" value="245" /></label>
+            <label class="completed-only" id="wrap_np">Normalized Power (W)<input id="plan_np" type="number" value="262" /></label>
+            <label class="completed-only" id="wrap_cadence">Cadence<input id="plan_cadence" type="number" value="86" /></label>
 
-          <label>Avg HR bpm<input id="avg_hr" type="number" value="150" /></label>
-          <label>Max HR bpm<input id="max_hr" type="number" value="185" /></label>
-          <label>Avg power W<input id="avg_power" type="number" value="250" /></label>
-          <label>Norm power W<input id="np" type="number" value="265" /></label>
+            <label>Distance (km)<input id="plan_distance" type="number" step="0.1" value="30" /></label>
+            <label>Elevation (m)<input id="plan_elevation" type="number" value="350" /></label>
+            <label>Temperature (C)<input id="plan_temp" type="number" value="20" /></label>
+            <label>Humidity (%)<input id="plan_humidity" type="number" value="55" /></label>
+            <label>Altitude (m)<input id="plan_altitude" type="number" value="100" /></label>
+            <label>Terrain Factor<input id="plan_terrain" type="number" step="0.01" value="1" /></label>
 
-          <label>Cadence<input id="cad" type="number" value="86" /></label>
-          <label>Distance km<input id="dist" type="number" step="0.1" value="40" /></label>
-          <label>Elevation m<input id="elev" type="number" value="350" /></label>
-          <label>Temp C<input id="temp" type="number" value="20" /></label>
+            <label>Sleep (h)<input id="plan_sleep" type="number" step="0.1" value="7.5" /></label>
+            <label>HRV<input id="plan_hrv" type="number" value="60" /></label>
+            <label>Stress (0-10)<input id="plan_stress" type="number" step="0.1" value="3" /></label>
 
-          <label>Humidity %<input id="hum" type="number" value="55" /></label>
-          <label>Altitude m<input id="alt" type="number" value="100" /></label>
-          <label>Terrain factor<input id="terrain" type="number" step="0.01" value="1" /></label>
-          <label>Science mode
-            <select id="science"><option value="true">Yes</option><option value="false">Practical</option></select>
-          </label>
+            <label>Science Mode
+              <select id="plan_science_mode"><option value="true">Strict Science</option><option value="false">Practical</option></select>
+            </label>
+          </div>
 
-          <label>Indoor<select id="indoor"><option value="false">No</option><option value="true">Yes</option></select></label>
-          <label>Race day<select id="race"><option value="false">No</option><option value="true">Yes</option></select></label>
-          <label>Food IDs (comma)<input id="food_ids" type="text" placeholder="1,2,7" /></label>
-        </div>
-        <div class="actions">
-          <button class="primary" id="predictBtn">Generate Recommendation</button>
-          <button class="secondary" id="simulateBtn">Run What-if (+5C, +20m, +0.7 RPE)</button>
-          <button class="secondary" id="saveWorkoutBtn">Save As Completed Workout</button>
-        </div>
-      </div>
+          <h3>Food Selection For Plan</h3>
+          <div class="food-picker" id="foodPicker"></div>
 
-      <div class="card">
-        <h2>Output</h2>
-        <div id="result"><div class="notes">No prediction yet.</div></div>
+          <div class="actions">
+            <button class="btn-primary" id="predictBtn">Generate Fuel Plan</button>
+            <button class="btn-secondary" id="simulateBtn">Simulate (+5C, +20m, +0.7 RPE)</button>
+            <button class="btn-secondary" id="saveWorkoutBtn">Save Workout</button>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Output</h2>
+          <div id="result"><p class="muted">Generate a plan to see strategy and timing output.</p></div>
+        </article>
       </div>
     </section>
 
-    <section class="layout">
-      <div class="card">
+    <section class="panel" id="panel-settings">
+      <div class="grid-two">
+        <article class="card">
+          <h2>Account</h2>
+          <div class="form-grid two">
+            <label>Email<input id="account_email" type="email" placeholder="you@example.com" /></label>
+            <label>Password<input id="account_password" type="password" placeholder="Minimum 8 characters" /></label>
+          </div>
+          <div class="actions">
+            <button class="btn-primary" id="registerBtn">Register</button>
+            <button class="btn-secondary" id="loginBtn">Login</button>
+            <button class="btn-secondary" id="logoutBtn">Logout</button>
+          </div>
+          <div class="muted" id="authState">Not logged in</div>
+        </article>
+
+        <article class="card">
+          <h2>Athlete Settings</h2>
+          <div class="form-grid three">
+            <label>Mass (kg)<input id="set_mass" type="number" value="72" /></label>
+            <label>Body Fat (%)<input id="set_body_fat" type="number" value="12" /></label>
+            <label>VO2max<input id="set_vo2max" type="number" value="55" /></label>
+
+            <label>Lactate Threshold (%)<input id="set_lt_pct" type="number" value="86" /></label>
+            <label>GI Tolerance<input id="set_gi_tolerance" type="number" step="0.1" value="6" /></label>
+            <label>Weekly Load (h)<input id="set_weekly_load" type="number" step="0.1" value="12" /></label>
+
+            <label>Bike FTP (W)<input id="set_bike_ftp" type="number" value="300" /></label>
+            <label>Run FTP (W)<input id="set_run_ftp" type="number" value="340" /></label>
+            <label>Run Threshold Pace (sec/km)<input id="set_run_thr_pace" type="number" value="235" /></label>
+
+            <label>Bike LT1 HR<input id="set_bike_lt1" type="number" value="145" /></label>
+            <label>Bike LT2 HR<input id="set_bike_lt2" type="number" value="172" /></label>
+            <label>Run LT1 HR<input id="set_run_lt1" type="number" value="150" /></label>
+
+            <label>Run LT2 HR<input id="set_run_lt2" type="number" value="178" /></label>
+            <label>Max Carb Absorption (g/h)<input id="set_max_carb" type="number" value="115" /></label>
+            <label>Gut Training Level<input id="set_gut_training" type="number" step="0.1" value="6" /></label>
+
+            <label>Sweat Rate (L/h)<input id="set_sweat_rate" type="number" step="0.01" value="0.9" /></label>
+            <label>Sodium Loss (mg/L)<input id="set_sodium_loss" type="number" value="900" /></label>
+            <label>Default Temp (C)<input id="set_def_temp" type="number" value="20" /></label>
+
+            <label>Default Humidity (%)<input id="set_def_humidity" type="number" value="55" /></label>
+            <label>Default Altitude (m)<input id="set_def_altitude" type="number" value="100" /></label>
+            <label>Default Terrain<input id="set_def_terrain" type="number" step="0.01" value="1" /></label>
+          </div>
+
+          <div class="actions">
+            <button class="btn-primary" id="saveSettingsBtn">Save User Settings</button>
+          </div>
+          <div id="settingsStatus" class="muted"></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-foods">
+      <article class="card">
         <h2>Food Database</h2>
         <div class="form-grid four">
-          <label>Name<input id="food_name" type="text" placeholder="Homemade Gel" /></label>
-          <label>Category<input id="food_cat" type="text" value="gel" /></label>
-          <label>Serving<input id="food_serving" type="text" value="1 serving" /></label>
-          <label>Carbs g<input id="food_carbs" type="number" value="24" /></label>
-          <label>Sodium mg<input id="food_sodium" type="number" value="90" /></label>
-          <label>Fluid ml<input id="food_fluid" type="number" value="0" /></label>
-          <label>Caffeine mg<input id="food_caffeine" type="number" value="0" /></label>
-        </div>
-        <div class="actions">
-          <button class="secondary" id="addFoodBtn">Add Custom Food</button>
-          <button class="secondary" id="loadFoodsBtn">Load Food Database</button>
-        </div>
-        <div id="foodsTable" class="notes">No foods loaded.</div>
-      </div>
+          <label>Name<input id="food_name" type="text" placeholder="Homemade Flask Mix" /></label>
+          <label>Category<input id="food_category" type="text" value="drink" /></label>
+          <label>Serving Description<input id="food_serving" type="text" value="1 flask" /></label>
+          <label>Carbs (g)<input id="food_carbs" type="number" value="50" /></label>
 
-      <div class="card">
-        <h2>Integrations</h2>
-        <div class="form-grid two">
-          <label>Strava Access Token<input id="strava_token" type="text" placeholder="Paste Strava bearer token" /></label>
-          <label>Garmin Access Token<input id="garmin_token" type="text" placeholder="Paste Garmin/proxy token" /></label>
+          <label>Sodium (mg)<input id="food_sodium" type="number" value="300" /></label>
+          <label>Fluid (ml)<input id="food_fluid" type="number" value="200" /></label>
+          <label>Caffeine (mg)<input id="food_caffeine" type="number" value="0" /></label>
         </div>
         <div class="actions">
-          <button class="secondary" id="saveStravaTokenBtn">Save Strava Token</button>
-          <button class="secondary" id="syncStravaCompletedBtn">Sync Strava Completed</button>
-          <button class="secondary" id="saveGarminTokenBtn">Save Garmin Token</button>
-          <button class="secondary" id="syncGarminPlannedBtn">Sync Garmin Planned</button>
-          <button class="secondary" id="syncGarminCompletedBtn">Sync Garmin Completed</button>
-          <button class="secondary" id="refreshIntegrationsBtn">Refresh Connections</button>
+          <button class="btn-primary" id="addFoodBtn">Add Custom Food</button>
+          <button class="btn-secondary" id="loadFoodsBtn">Refresh Foods</button>
         </div>
-        <div id="integrationsStatus" class="notes">No data.</div>
-      </div>
+        <div id="foodsTable" class="table-wrap"></div>
+      </article>
     </section>
 
-    <section class="layout">
-      <div class="card">
-        <h2>Workout Tracking</h2>
-        <div class="actions"><button class="secondary" id="loadWorkoutsBtn">Load Recent Workouts</button></div>
-        <div id="workoutsTable" class="notes">No workouts loaded.</div>
+    <section class="panel" id="panel-integrations">
+      <div class="grid-two">
+        <article class="card">
+          <h2>Strava</h2>
+          <p class="muted" id="stravaStatus">Not connected.</p>
+          <div class="actions">
+            <button class="btn-primary" id="connectStravaBtn">Connect Strava</button>
+            <button class="btn-secondary" id="syncStravaCompletedBtn">Sync Completed Workouts</button>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Garmin Connect</h2>
+          <p class="muted" id="garminStatus">Not connected.</p>
+          <div class="actions">
+            <button class="btn-primary" id="connectGarminBtn">Connect Garmin</button>
+            <button class="btn-secondary" id="syncGarminPlannedBtn">Sync Planned Workouts</button>
+            <button class="btn-secondary" id="syncGarminCompletedBtn">Sync Completed Workouts</button>
+          </div>
+        </article>
       </div>
-      <div class="card">
-        <h2>Analytics Dashboard</h2>
-        <div class="actions"><button class="secondary" id="refreshAnalyticsBtn">Refresh 30-day Analytics</button></div>
-        <div class="grid4" id="summaryKpis"></div>
-        <canvas id="analyticsChart" height="120"></canvas>
+      <article class="card">
+        <h2>Integration Events</h2>
+        <div id="integrationsStatus" class="muted">No events yet.</div>
+      </article>
+    </section>
+
+    <section class="panel" id="panel-analytics">
+      <div class="grid-two">
+        <article class="card">
+          <h2>Analytics</h2>
+          <div class="actions">
+            <button class="btn-primary" id="refreshAnalyticsBtn">Refresh 30-Day Analytics</button>
+          </div>
+          <div class="kpi-grid" id="summaryKpis"></div>
+          <canvas id="analyticsChart" height="130"></canvas>
+        </article>
+        <article class="card">
+          <h2>Recent Workouts</h2>
+          <div class="actions">
+            <button class="btn-secondary" id="loadWorkoutsBtn">Refresh Workouts</button>
+          </div>
+          <div id="workoutsTable" class="table-wrap"></div>
+        </article>
       </div>
     </section>
   </main>

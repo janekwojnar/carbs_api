@@ -7,8 +7,24 @@ services:
     envVars:
       - key: JWT_SECRET
         sync: false
+      - key: APP_BASE_URL
+        sync: false
       - key: DB_PATH
         value: /var/data/endurance.sqlite3
+      - key: STRAVA_CLIENT_ID
+        sync: false
+      - key: STRAVA_CLIENT_SECRET
+        sync: false
+      - key: GARMIN_CLIENT_ID
+        sync: false
+      - key: GARMIN_CLIENT_SECRET
+        sync: false
+      - key: GARMIN_OAUTH_AUTH_URL
+        sync: false
+      - key: GARMIN_OAUTH_TOKEN_URL
+        sync: false
+      - key: GARMIN_SCOPE
+        sync: false
       - key: GARMIN_PROXY_URL
         sync: false
     disks:

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+import os
 from pathlib import Path
 from typing import Any, Optional
+from urllib.parse import quote
 
-from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -12,11 +15,13 @@ from src.api.auth import AuthRequest, RegisterRequest, login_user, register_user
 from src.core.engine import predict, simulate
 from src.core.models import FoodItem, PredictionRequest, SimulationRequest
 from src.integrations.connectors import integration_status, pull_workouts
+from src.integrations.oauth import OAuthError, build_authorize_url, exchange_code
 from src.integrations.providers import IntegrationError
 from src.storage.audit import init_db, read_audit, write_audit
 from src.storage.auth import init_auth_db
 from src.storage.foods import add_custom_food, delete_custom_food, init_food_db, list_foods, resolve_foods_for_plan
 from src.storage.integrations import get_token, init_integrations_db, upsert_token
+from src.storage.oauth_state import consume_state, create_state, init_oauth_state_db
 from src.storage.profile import get_profile, init_profile_db, upsert_profile
 from src.storage.workouts import (
     add_workout,
@@ -26,9 +31,27 @@ from src.storage.workouts import (
     list_workouts,
 )
 
-app = FastAPI(title="Endurance Fuel AI", version="0.4.0")
+app = FastAPI(title="Endurance Fuel AI", version="0.5.0")
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
+
+
+def _app_base_url(request: Request) -> str:
+    configured = os.getenv("APP_BASE_URL", "").strip().rstrip("/")
+    if configured:
+        return configured
+    return str(request.base_url).rstrip("/")
+
+
+def _callback_url(provider: str, request: Request) -> str:
+    return f"{_app_base_url(request)}/api/v1/integrations/{provider}/oauth/callback"
+
+
+def _front_redirect(provider: str, status: str, message: str = "") -> str:
+    q = f"?oauth_provider={quote(provider)}&oauth_status={quote(status)}"
+    if message:
+        q += f"&oauth_message={quote(message)}"
+    return f"/{q}"
 
 
 class ProfileUpdate(BaseModel):
@@ -104,6 +127,7 @@ def startup() -> None:
     init_workout_db()
     init_integrations_db()
     init_food_db()
+    init_oauth_state_db()
 
 
 @app.get("/", include_in_schema=False)
@@ -116,7 +140,7 @@ app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
 @app.get("/api/v1/health")
 def health() -> dict:
-    return {"ok": True, "service": "endurance-fuel-ai", "version": "0.4.0"}
+    return {"ok": True, "service": "endurance-fuel-ai", "version": "0.5.0"}
 
 
 @app.post("/api/v1/auth/register")
@@ -206,6 +230,76 @@ def foods_delete(food_id: int, current_user: dict = Depends(require_user)) -> di
 @app.get("/api/v1/integrations")
 def integrations(current_user: dict = Depends(require_user)) -> dict:
     return {"items": integration_status(current_user["id"]), "user": current_user["email"]}
+
+
+@app.post("/api/v1/integrations/{provider}/oauth/start")
+def integration_oauth_start(
+    provider: str,
+    request: Request,
+    current_user: dict = Depends(require_user),
+) -> dict:
+    if provider not in {"strava", "garmin_connect"}:
+        raise HTTPException(status_code=404, detail="Unsupported provider")
+    state = create_state(current_user["id"], provider)
+    try:
+        authorize_url = build_authorize_url(provider, _callback_url(provider, request), state)
+    except OAuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"authorize_url": authorize_url}
+
+
+@app.get("/api/v1/integrations/{provider}/oauth/callback")
+def integration_oauth_callback(
+    provider: str,
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+) -> RedirectResponse:
+    if provider not in {"strava", "garmin_connect"}:
+        return RedirectResponse(url=_front_redirect(provider, "error", "unsupported_provider"), status_code=302)
+
+    if error:
+        return RedirectResponse(url=_front_redirect(provider, "error", error), status_code=302)
+    if not code or not state:
+        return RedirectResponse(url=_front_redirect(provider, "error", "missing_code_or_state"), status_code=302)
+
+    user_id = consume_state(state, provider)
+    if user_id is None:
+        return RedirectResponse(url=_front_redirect(provider, "error", "invalid_state"), status_code=302)
+
+    try:
+        token_payload = exchange_code(provider, code, _callback_url(provider, request))
+    except OAuthError as exc:
+        return RedirectResponse(url=_front_redirect(provider, "error", str(exc)), status_code=302)
+
+    access_token = str(token_payload.get("access_token") or "")
+    if not access_token:
+        return RedirectResponse(url=_front_redirect(provider, "error", "missing_access_token"), status_code=302)
+
+    refresh_token = token_payload.get("refresh_token")
+    raw_exp = token_payload.get("expires_at") or token_payload.get("expires_in")
+    expires_at: str | None = None
+    if isinstance(raw_exp, (int, float)):
+        # Strava returns epoch seconds as `expires_at`, other providers may return `expires_in`.
+        if raw_exp > 2_000_000_000:
+            dt = datetime.fromtimestamp(raw_exp / 1000, tz=timezone.utc)
+        elif raw_exp > 100_000_000:
+            dt = datetime.fromtimestamp(raw_exp, tz=timezone.utc)
+        else:
+            dt = datetime.now(timezone.utc)
+        expires_at = dt.isoformat()
+    elif isinstance(raw_exp, str) and raw_exp:
+        expires_at = raw_exp
+
+    upsert_token(
+        user_id=user_id,
+        provider=provider,
+        access_token=access_token,
+        refresh_token=str(refresh_token) if refresh_token else None,
+        expires_at=expires_at,
+    )
+    return RedirectResponse(url=_front_redirect(provider, "connected"), status_code=302)
 
 
 @app.post("/api/v1/integrations/{provider}/token")

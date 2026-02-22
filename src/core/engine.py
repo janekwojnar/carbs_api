@@ -39,23 +39,70 @@ def _env_load_factor(temp_c: float, humidity: float, altitude_m: float, terrain_
     return heat * humidity_load * altitude_load * terrain_factor
 
 
+def _effective_intensity_rpe(req: PredictionRequest) -> float:
+    mode = req.session.intensity_mode
+    if mode == "rpe":
+        return _clamp(req.session.intensity_rpe, 1, 10)
+
+    if mode == "hr":
+        if req.session.target_heart_rate_bpm and req.session.max_heart_rate_bpm:
+            ratio = req.session.target_heart_rate_bpm / max(1.0, req.session.max_heart_rate_bpm)
+            return round(_clamp(2.0 + ratio * 8.0, 1, 10), 2)
+        return _clamp(req.session.intensity_rpe, 1, 10)
+
+    if mode == "power":
+        if req.session.target_power_watts and req.profile.bike_ftp_w and req.session.sport.value in {"cycling", "hyrox"}:
+            ratio = req.session.target_power_watts / max(1.0, req.profile.bike_ftp_w)
+            return round(_clamp(2.0 + ratio * 7.8, 1, 10), 2)
+        if req.session.target_power_watts and req.profile.run_ftp_w and req.session.sport.value in {"running", "trail_running"}:
+            ratio = req.session.target_power_watts / max(1.0, req.profile.run_ftp_w)
+            return round(_clamp(2.0 + ratio * 7.6, 1, 10), 2)
+        return _clamp(req.session.intensity_rpe, 1, 10)
+
+    if mode == "pace":
+        if req.session.target_pace_sec_per_km and req.profile.run_threshold_pace_sec_per_km:
+            pace_ratio = req.profile.run_threshold_pace_sec_per_km / max(1.0, req.session.target_pace_sec_per_km)
+            return round(_clamp(2.0 + pace_ratio * 7.5, 1, 10), 2)
+        return _clamp(req.session.intensity_rpe, 1, 10)
+
+    return _clamp(req.session.intensity_rpe, 1, 10)
+
+
+def _effective_hr(req: PredictionRequest) -> Optional[float]:
+    if req.session.avg_heart_rate_bpm:
+        return req.session.avg_heart_rate_bpm
+    if req.session.intensity_mode == "hr" and req.session.target_heart_rate_bpm:
+        return req.session.target_heart_rate_bpm
+    return None
+
+
+def _effective_power(req: PredictionRequest) -> Optional[float]:
+    if req.session.avg_power_watts:
+        return req.session.avg_power_watts
+    if req.session.intensity_mode == "power" and req.session.target_power_watts:
+        return req.session.target_power_watts
+    return None
+
+
 def _load_signal(req: PredictionRequest) -> Tuple[float, List[str]]:
     notes: List[str] = []
     factor = 1.0
+    hr_value = _effective_hr(req)
+    power_value = _effective_power(req)
 
-    if req.session.avg_heart_rate_bpm and req.session.max_heart_rate_bpm:
-        hr_ratio = req.session.avg_heart_rate_bpm / req.session.max_heart_rate_bpm
+    if hr_value and req.session.max_heart_rate_bpm:
+        hr_ratio = hr_value / req.session.max_heart_rate_bpm
         hr_factor = _clamp(0.92 + hr_ratio * 0.26, 0.9, 1.2)
         factor *= hr_factor
-        notes.append("Heart-rate load factor applied from average/max HR.")
+        notes.append("Heart-rate load factor applied from target/average HR.")
 
-    if req.session.avg_power_watts:
-        power_factor = _clamp(0.9 + (req.session.avg_power_watts / 300.0) * 0.25, 0.88, 1.22)
+    if power_value:
+        power_factor = _clamp(0.9 + (power_value / 300.0) * 0.25, 0.88, 1.22)
         factor *= power_factor
-        notes.append("Power-based load factor applied from average power.")
+        notes.append("Power-based load factor applied from target/average power.")
 
-    if req.session.normalized_power_watts and req.session.avg_power_watts:
-        variability = req.session.normalized_power_watts / max(1.0, req.session.avg_power_watts)
+    if req.session.normalized_power_watts and power_value:
+        variability = req.session.normalized_power_watts / max(1.0, power_value)
         factor *= _clamp(0.95 + (variability - 1.0) * 0.5, 0.9, 1.1)
         notes.append("Power variability adjustment applied (NP/AP ratio).")
 
@@ -88,7 +135,7 @@ def _confidence_band(req: PredictionRequest) -> Tuple[float, float, List[str]]:
     if req.profile.hrv_score is None:
         uncertainty += 0.02
         notes.append("HRV missing; readiness uncertainty increased.")
-    if req.session.avg_heart_rate_bpm is None and req.session.avg_power_watts is None:
+    if _effective_hr(req) is None and _effective_power(req) is None:
         uncertainty += 0.03
         notes.append("No HR/power telemetry provided; load estimate less precise.")
     if req.profile.bike_ftp_w is None and req.profile.run_ftp_w is None:
@@ -102,7 +149,7 @@ def _confidence_band(req: PredictionRequest) -> Tuple[float, float, List[str]]:
 
 
 def _base_carbs_per_hour(req: PredictionRequest) -> Tuple[float, List[str]]:
-    intensity = req.session.intensity_rpe
+    intensity = _effective_intensity_rpe(req)
     duration_h = req.session.duration_minutes / 60.0
     mass = req.profile.body_mass_kg
     sport_mult = SPORT_MULTIPLIER[req.session.sport.value]
@@ -121,23 +168,26 @@ def _base_carbs_per_hour(req: PredictionRequest) -> Tuple[float, List[str]]:
     load_factor, load_notes = _load_signal(req)
     carb_rate *= load_factor
 
-    if req.session.avg_power_watts and req.profile.bike_ftp_w and req.session.sport.value in {"cycling", "hyrox"}:
-        ifactor = req.session.avg_power_watts / req.profile.bike_ftp_w
+    power_value = _effective_power(req)
+    hr_value = _effective_hr(req)
+
+    if power_value and req.profile.bike_ftp_w and req.session.sport.value in {"cycling", "hyrox"}:
+        ifactor = power_value / req.profile.bike_ftp_w
         carb_rate *= _clamp(0.9 + ifactor * 0.28, 0.88, 1.3)
-        load_notes.append("Bike intensity factor based on average power / FTP.")
+        load_notes.append("Bike intensity factor based on target/average power vs FTP.")
 
-    if req.session.avg_power_watts and req.profile.run_ftp_w and req.session.sport.value in {"running", "trail_running"}:
-        rifactor = req.session.avg_power_watts / req.profile.run_ftp_w
+    if power_value and req.profile.run_ftp_w and req.session.sport.value in {"running", "trail_running"}:
+        rifactor = power_value / req.profile.run_ftp_w
         carb_rate *= _clamp(0.9 + rifactor * 0.24, 0.88, 1.26)
-        load_notes.append("Run intensity factor based on run power / rFTP.")
+        load_notes.append("Run intensity factor based on target/average power vs rFTP.")
 
-    if req.session.avg_heart_rate_bpm and req.profile.run_lt2_hr_bpm and req.session.sport.value in {"running", "trail_running"}:
-        hr_ratio = req.session.avg_heart_rate_bpm / req.profile.run_lt2_hr_bpm
+    if hr_value and req.profile.run_lt2_hr_bpm and req.session.sport.value in {"running", "trail_running"}:
+        hr_ratio = hr_value / req.profile.run_lt2_hr_bpm
         carb_rate *= _clamp(0.92 + hr_ratio * 0.16, 0.9, 1.18)
         load_notes.append("Run LT2 heart-rate ratio adjustment applied.")
 
-    if req.session.avg_heart_rate_bpm and req.profile.bike_lt2_hr_bpm and req.session.sport.value in {"cycling"}:
-        hr_ratio = req.session.avg_heart_rate_bpm / req.profile.bike_lt2_hr_bpm
+    if hr_value and req.profile.bike_lt2_hr_bpm and req.session.sport.value in {"cycling"}:
+        hr_ratio = hr_value / req.profile.bike_lt2_hr_bpm
         carb_rate *= _clamp(0.92 + hr_ratio * 0.16, 0.9, 1.18)
         load_notes.append("Bike LT2 heart-rate ratio adjustment applied.")
 
@@ -157,13 +207,14 @@ def _base_carbs_per_hour(req: PredictionRequest) -> Tuple[float, List[str]]:
 def _hydration_ml_per_hour(req: PredictionRequest) -> float:
     sweat_l_h = req.profile.sweat_rate_l_h or 0.9
     base = sweat_l_h * 1000
-    base += req.session.intensity_rpe * 42
+    base += _effective_intensity_rpe(req) * 42
     base += max(0, req.environment.temperature_c - 16) * 18
     base += max(0, req.environment.humidity_pct - 50) * 3
     if req.session.sport.value in {"cycling", "running", "trail_running", "hyrox"}:
         base += 60
-    if req.session.avg_heart_rate_bpm:
-        base += max(0.0, req.session.avg_heart_rate_bpm - 140) * 1.6
+    hr_value = _effective_hr(req)
+    if hr_value:
+        base += max(0.0, hr_value - 140) * 1.6
     return _clamp(base, 350, 1300)
 
 
@@ -177,7 +228,7 @@ def _sodium_mg_per_hour(req: PredictionRequest, hydration_ml_h: float) -> float:
 def _gi_risk(req: PredictionRequest, carbs_per_hour: float) -> float:
     risk = 2.4
     risk += max(0, carbs_per_hour - 70) * 0.03
-    risk += max(0, req.session.intensity_rpe - 7) * 0.5
+    risk += max(0, _effective_intensity_rpe(req) - 7) * 0.5
     risk += max(0, req.environment.temperature_c - 25) * 0.08
     risk += max(0, (5 - req.profile.gi_tolerance_score)) * 0.55
     if req.session.sport.value in {"running", "trail_running", "hyrox", "hiit"}:

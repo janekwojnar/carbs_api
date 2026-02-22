@@ -77,7 +77,16 @@ function authHeaders(includeJson = true) {
 async function requestJson(url, options = {}) {
   const res = await fetch(url, options);
   if (!res.ok) {
-    throw new Error(await res.text());
+    const text = await res.text();
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && parsed.detail) {
+        throw new Error(String(parsed.detail));
+      }
+    } catch {
+      // fall through to raw text
+    }
+    throw new Error(text);
   }
   return res.json();
 }
@@ -417,6 +426,14 @@ async function refreshIntegrations() {
 }
 
 async function connectProvider(provider) {
+  const cfg = await getJson(`/api/v1/integrations/${provider}/oauth/config`, true);
+  if (!cfg.ready) {
+    const missing = (cfg.missing_env || []).join(", ") || "unknown";
+    throw new Error(
+      `${provider} OAuth is not configured on server. Missing: ${missing}. ` +
+      `Set these env vars in Render and register callback URL in provider app: ${cfg.callback_url}`
+    );
+  }
   const data = await sendJson(`/api/v1/integrations/${provider}/oauth/start`, {}, true);
   if (!data.authorize_url) throw new Error("Missing authorize URL");
   window.location.href = data.authorize_url;

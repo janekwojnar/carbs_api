@@ -22,6 +22,30 @@ class ProviderConfig:
     scope: str
 
 
+def missing_env_for_provider(provider: str) -> list[str]:
+    if provider == "strava":
+        missing: list[str] = []
+        if not os.getenv("STRAVA_CLIENT_ID", "").strip():
+            missing.append("STRAVA_CLIENT_ID")
+        if not os.getenv("STRAVA_CLIENT_SECRET", "").strip():
+            missing.append("STRAVA_CLIENT_SECRET")
+        return missing
+
+    if provider == "garmin_connect":
+        missing = []
+        if not os.getenv("GARMIN_CLIENT_ID", "").strip():
+            missing.append("GARMIN_CLIENT_ID")
+        if not os.getenv("GARMIN_CLIENT_SECRET", "").strip():
+            missing.append("GARMIN_CLIENT_SECRET")
+        if not os.getenv("GARMIN_OAUTH_AUTH_URL", "").strip():
+            missing.append("GARMIN_OAUTH_AUTH_URL")
+        if not os.getenv("GARMIN_OAUTH_TOKEN_URL", "").strip():
+            missing.append("GARMIN_OAUTH_TOKEN_URL")
+        return missing
+
+    return ["unsupported_provider"]
+
+
 def _read_json(req: request.Request) -> Dict[str, object]:
     try:
         with request.urlopen(req, timeout=20) as resp:
@@ -36,7 +60,8 @@ def provider_config(provider: str) -> ProviderConfig:
         cid = os.getenv("STRAVA_CLIENT_ID", "").strip()
         secret = os.getenv("STRAVA_CLIENT_SECRET", "").strip()
         if not cid or not secret:
-            raise OAuthError("Strava OAuth is not configured")
+            missing = ", ".join(missing_env_for_provider("strava"))
+            raise OAuthError(f"Strava OAuth is not configured. Missing env: {missing}")
         return ProviderConfig(
             provider="strava",
             client_id=cid,
@@ -53,7 +78,8 @@ def provider_config(provider: str) -> ProviderConfig:
         token_url = os.getenv("GARMIN_OAUTH_TOKEN_URL", "").strip()
         scope = os.getenv("GARMIN_SCOPE", "activity:read")
         if not cid or not secret or not auth_url or not token_url:
-            raise OAuthError("Garmin OAuth is not fully configured")
+            missing = ", ".join(missing_env_for_provider("garmin_connect"))
+            raise OAuthError(f"Garmin OAuth is not configured. Missing env: {missing}")
         return ProviderConfig(
             provider="garmin_connect",
             client_id=cid,

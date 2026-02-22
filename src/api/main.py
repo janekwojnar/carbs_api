@@ -15,7 +15,7 @@ from src.api.auth import AuthRequest, RegisterRequest, login_user, register_user
 from src.core.engine import predict, simulate
 from src.core.models import FoodItem, PredictionRequest, SimulationRequest
 from src.integrations.connectors import integration_status, pull_workouts
-from src.integrations.oauth import OAuthError, build_authorize_url, exchange_code
+from src.integrations.oauth import OAuthError, build_authorize_url, exchange_code, missing_env_for_provider, oauth_ready
 from src.integrations.providers import IntegrationError
 from src.storage.audit import init_db, read_audit, write_audit
 from src.storage.auth import init_auth_db
@@ -230,6 +230,23 @@ def foods_delete(food_id: int, current_user: dict = Depends(require_user)) -> di
 @app.get("/api/v1/integrations")
 def integrations(current_user: dict = Depends(require_user)) -> dict:
     return {"items": integration_status(current_user["id"]), "user": current_user["email"]}
+
+
+@app.get("/api/v1/integrations/{provider}/oauth/config")
+def integration_oauth_config(
+    provider: str,
+    request: Request,
+    current_user: dict = Depends(require_user),
+) -> dict:
+    if provider not in {"strava", "garmin_connect"}:
+        raise HTTPException(status_code=404, detail="Unsupported provider")
+    return {
+        "provider": provider,
+        "ready": oauth_ready(provider),
+        "missing_env": missing_env_for_provider(provider),
+        "callback_url": _callback_url(provider, request),
+        "app_base_url": _app_base_url(request),
+    }
 
 
 @app.post("/api/v1/integrations/{provider}/oauth/start")

@@ -72,7 +72,7 @@ def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     normalized = email.strip().lower()
     with _conn() as conn:
         row = conn.execute(
-            "SELECT id, email, password_hash, created_at FROM users WHERE email = ?",
+            "SELECT id, email, password_hash, created_at FROM users WHERE lower(email) = ?",
             (normalized,),
         ).fetchone()
     if row is None:

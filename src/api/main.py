@@ -7,7 +7,7 @@ from typing import Any, Optional
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -57,6 +57,15 @@ def _front_redirect(provider: str, status: str, message: str = "") -> str:
     if message:
         q += f"&oauth_message={quote(message)}"
     return f"/{q}"
+
+
+def _oauth_result_redirect(provider: str, status: str, message: str = "", client: str | None = None) -> str:
+    if client == "ios":
+        q = f"?provider={quote(provider)}&status={quote(status)}"
+        if message:
+            q += f"&message={quote(message)}"
+        return f"/api/v1/integrations/oauth/result{q}"
+    return _front_redirect(provider, status, message)
 
 
 class ProfileUpdate(BaseModel):
@@ -289,11 +298,12 @@ def integration_oauth_config(
 def integration_oauth_start(
     provider: str,
     request: Request,
+    client: str | None = Query(default=None, pattern="^(ios|web)$"),
     current_user: dict = Depends(require_user),
 ) -> dict:
     if provider not in {"strava", "garmin_connect"}:
         raise HTTPException(status_code=404, detail="Unsupported provider")
-    state = create_state(current_user["id"], provider)
+    state = create_state(current_user["id"], provider, client=client or "web")
     try:
         authorize_url = build_authorize_url(provider, _callback_url(provider, request), state)
     except OAuthError as exc:
@@ -309,26 +319,29 @@ def integration_oauth_callback(
     state: str | None = None,
     error: str | None = None,
 ) -> RedirectResponse:
+    client: str | None = None
     if provider not in {"strava", "garmin_connect"}:
-        return RedirectResponse(url=_front_redirect(provider, "error", "unsupported_provider"), status_code=302)
+        return RedirectResponse(url=_oauth_result_redirect(provider, "error", "unsupported_provider", client), status_code=302)
 
     if error:
-        return RedirectResponse(url=_front_redirect(provider, "error", error), status_code=302)
+        return RedirectResponse(url=_oauth_result_redirect(provider, "error", error, client), status_code=302)
     if not code or not state:
-        return RedirectResponse(url=_front_redirect(provider, "error", "missing_code_or_state"), status_code=302)
+        return RedirectResponse(url=_oauth_result_redirect(provider, "error", "missing_code_or_state", client), status_code=302)
 
-    user_id = consume_state(state, provider)
-    if user_id is None:
-        return RedirectResponse(url=_front_redirect(provider, "error", "invalid_state"), status_code=302)
+    consumed = consume_state(state, provider)
+    if consumed is None:
+        return RedirectResponse(url=_oauth_result_redirect(provider, "error", "invalid_state", client), status_code=302)
+    user_id, state_client = consumed
+    client = state_client or client
 
     try:
         token_payload = exchange_code(provider, code, _callback_url(provider, request))
     except OAuthError as exc:
-        return RedirectResponse(url=_front_redirect(provider, "error", str(exc)), status_code=302)
+        return RedirectResponse(url=_oauth_result_redirect(provider, "error", str(exc), client), status_code=302)
 
     access_token = str(token_payload.get("access_token") or "")
     if not access_token:
-        return RedirectResponse(url=_front_redirect(provider, "error", "missing_access_token"), status_code=302)
+        return RedirectResponse(url=_oauth_result_redirect(provider, "error", "missing_access_token", client), status_code=302)
 
     refresh_token = token_payload.get("refresh_token")
     raw_exp = token_payload.get("expires_at") or token_payload.get("expires_in")
@@ -352,7 +365,57 @@ def integration_oauth_callback(
         refresh_token=str(refresh_token) if refresh_token else None,
         expires_at=expires_at,
     )
-    return RedirectResponse(url=_front_redirect(provider, "connected"), status_code=302)
+    return RedirectResponse(url=_oauth_result_redirect(provider, "connected", client=client), status_code=302)
+
+
+@app.get("/api/v1/integrations/oauth/result", include_in_schema=False)
+def oauth_result_page(
+    provider: str = Query(default="integration"),
+    status: str = Query(default="connected"),
+    message: str | None = None,
+) -> HTMLResponse:
+    ok = status == "connected"
+    title = "Connection complete" if ok else "Connection failed"
+    status_line = f"{provider.replace('_', ' ').title()}: {status}"
+    detail = message or ("You can close this screen and return to the app." if ok else "Please return to the app and try again.")
+    color = "#0f766e" if ok else "#b91c1c"
+    html = f"""<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <style>
+      body {{
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        margin: 0; background: #f4f7fb; color: #0f172a;
+      }}
+      .wrap {{
+        max-width: 640px; margin: 56px auto; padding: 0 20px;
+      }}
+      .card {{
+        background: #fff; border-radius: 16px; padding: 24px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+      }}
+      .pill {{
+        display: inline-block; border-radius: 999px; padding: 8px 12px;
+        background: #ecfeff; color: {color}; font-weight: 700;
+      }}
+      h1 {{ margin: 14px 0 8px; font-size: 28px; }}
+      p {{ margin: 0; color: #475569; font-size: 17px; line-height: 1.4; }}
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="card">
+        <span class="pill">{status_line}</span>
+        <h1>{title}</h1>
+        <p>{detail}</p>
+      </section>
+    </main>
+  </body>
+</html>"""
+    return HTMLResponse(content=html, status_code=200)
 
 
 @app.post("/api/v1/integrations/{provider}/token")

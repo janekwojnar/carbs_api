@@ -112,7 +112,32 @@ def resolve_foods_for_plan(user_id: int, selected_food_ids: Optional[List[int]])
             resolved = [dict(r) for r in rows]
             if resolved:
                 return resolved
+        # Default to endurance-focused in-session options instead of highest-carb list.
+        preferred = [
+            "Isotonic Drink 500ml",
+            "Energy Gel 25",
+            "Chews Serving",
+            "Banana Medium",
+            "Rice Cake Sports",
+            "Coke Can 330ml",
+            "Gummy Bears 40g",
+            "Energy Gel Caffeine",
+        ]
+        placeholders = ",".join(["?"] * len(preferred))
+        case_expr = " ".join([f"WHEN ? THEN {idx}" for idx, _ in enumerate(preferred)])
         fallback = conn.execute(
-            "SELECT * FROM foods WHERE is_builtin = 1 ORDER BY carbs_g DESC LIMIT 8"
+            f"""
+            SELECT *
+            FROM foods
+            WHERE is_builtin = 1
+              AND name IN ({placeholders})
+            ORDER BY CASE name {case_expr} ELSE 999 END
+            LIMIT 8
+            """,
+            tuple(preferred + preferred),
         ).fetchall()
+        if not fallback:
+            fallback = conn.execute(
+                "SELECT * FROM foods WHERE is_builtin = 1 ORDER BY name ASC LIMIT 8"
+            ).fetchall()
     return [dict(r) for r in fallback]

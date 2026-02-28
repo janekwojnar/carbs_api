@@ -348,26 +348,70 @@ def _slot_times(duration_minutes: int) -> List[int]:
     return sorted(set(slots))
 
 
-def _best_food_combo(
+def _food_choice_for_slot(
     foods: List[FoodItem],
     target_carbs: float,
     target_fluid: float,
     target_sodium: float,
-) -> Optional[FoodItem]:
+    minute: int,
+    duration: int,
+    last_food_name: str | None,
+    caffeine_used_mg: float,
+) -> Tuple[Optional[FoodItem], float]:
     if not foods:
-        return None
-    best = None
+        return None, 1.0
+
+    best: Optional[FoodItem] = None
+    best_scale = 1.0
     best_score = 1e9
-    for f in foods:
-        score = (
-            abs(f.carbs_g - target_carbs) * 1.8
-            + abs(f.fluid_ml - target_fluid) * 0.01
-            + abs(f.sodium_mg - target_sodium) * 0.003
-        )
-        if score < best_score:
-            best = f
-            best_score = score
-    return best
+    for food in foods:
+        if food.carbs_g > 0:
+            scales = [
+                _clamp(target_carbs / food.carbs_g, 0.35, 2.0),
+                0.6,
+                0.8,
+                1.0,
+                1.2,
+            ]
+        else:
+            scales = [1.0]
+
+        for scale in scales:
+            carbs = food.carbs_g * scale
+            fluid = food.fluid_ml * scale
+            sodium = food.sodium_mg * scale
+            caffeine = food.caffeine_mg * scale
+
+            score = (
+                abs(carbs - target_carbs) * 1.2
+                + abs(fluid - target_fluid) * 0.012
+                + abs(sodium - target_sodium) * 0.0025
+            )
+
+            # Avoid repeating the exact same item every slot.
+            if last_food_name and food.name == last_food_name:
+                score += 14.0
+
+            # Keep caffeine strategy realistic across long sessions.
+            if caffeine > 0:
+                if caffeine_used_mg >= 200:
+                    score += 300.0
+                elif caffeine_used_mg >= 130:
+                    score += 80.0
+                if minute < 45:
+                    score += 10.0
+                if duration >= 180 and minute % 30 == 0:
+                    score += 8.0
+
+            # In longer sessions, bias toward periodic fluid-containing choices.
+            if duration >= 180 and minute % 30 == 0 and fluid < max(120.0, target_fluid * 0.6):
+                score += 10.0
+
+            if score < best_score:
+                best_score = score
+                best = food
+                best_scale = scale
+    return best, best_scale
 
 
 def _format_clock(start_iso: Optional[str], offset_min: int) -> str:
@@ -392,6 +436,8 @@ def build_fueling_schedule(
     per_slot_fluid = balanced.hydration_ml_per_hour / 4.0
     per_slot_sodium = balanced.sodium_mg_per_hour / 4.0
     active_foods = foods or []
+    last_food_name: str | None = None
+    caffeine_used_mg = 0.0
 
     for m in slots:
         if m == 0:
@@ -409,20 +455,42 @@ def build_fueling_schedule(
             )
             continue
 
-        choice = _best_food_combo(active_foods, per_slot_carb, per_slot_fluid, per_slot_sodium)
+        choice, scale = _food_choice_for_slot(
+            foods=active_foods,
+            target_carbs=per_slot_carb,
+            target_fluid=per_slot_fluid,
+            target_sodium=per_slot_sodium,
+            minute=m,
+            duration=duration,
+            last_food_name=last_food_name,
+            caffeine_used_mg=caffeine_used_mg,
+        )
         if choice:
+            scaled_carbs = choice.carbs_g * scale
+            scaled_sodium = choice.sodium_mg * scale
+            scaled_fluid = choice.fluid_ml * scale
+            scaled_caffeine = choice.caffeine_mg * scale
+            if choice.serving_desc:
+                if abs(scale - 1.0) <= 0.08:
+                    serving = choice.serving_desc
+                else:
+                    serving = f"{scale:.2f} x {choice.serving_desc}"
+            else:
+                serving = f"{scale:.2f} serving"
             schedule.append(
                 FuelingAction(
                     minute_offset=m,
                     action=_format_clock(req.session.planned_start_iso, m),
                     food_name=choice.name,
-                    serving=choice.serving_desc,
-                    carbs_g=round(choice.carbs_g, 1),
-                    sodium_mg=round(choice.sodium_mg, 0),
-                    fluid_ml=round(choice.fluid_ml, 0),
-                    notes=f"Target this around every 15 min. Slot target: {per_slot_carb:.1f} g carbs.",
+                    serving=serving,
+                    carbs_g=round(scaled_carbs, 1),
+                    sodium_mg=round(scaled_sodium, 0),
+                    fluid_ml=round(scaled_fluid, 0),
+                    notes=f"Slot target {per_slot_carb:.1f} g carbs / {per_slot_fluid:.0f} ml. Caffeine total ~{caffeine_used_mg + scaled_caffeine:.0f} mg.",
                 )
             )
+            caffeine_used_mg += scaled_caffeine
+            last_food_name = choice.name
         else:
             schedule.append(
                 FuelingAction(

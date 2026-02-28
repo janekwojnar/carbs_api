@@ -22,30 +22,34 @@ def init_oauth_state_db() -> None:
                 state TEXT PRIMARY KEY,
                 user_id INTEGER NOT NULL,
                 provider TEXT NOT NULL,
+                client TEXT NOT NULL DEFAULT 'web',
                 expires_at TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
             """
         )
+        cols = conn.execute("PRAGMA table_info(oauth_states)").fetchall()
+        if not any(c[1] == "client" for c in cols):
+            conn.execute("ALTER TABLE oauth_states ADD COLUMN client TEXT NOT NULL DEFAULT 'web'")
 
 
-def create_state(user_id: int, provider: str, ttl_minutes: int = 15) -> str:
+def create_state(user_id: int, provider: str, client: str = "web", ttl_minutes: int = 15) -> str:
     state = secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc)
     expires_at = (now + timedelta(minutes=ttl_minutes)).isoformat()
     with _conn() as conn:
         conn.execute(
-            "INSERT INTO oauth_states (state, user_id, provider, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
-            (state, user_id, provider, expires_at, now.isoformat()),
+            "INSERT INTO oauth_states (state, user_id, provider, client, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (state, user_id, provider, client, expires_at, now.isoformat()),
         )
     return state
 
 
-def consume_state(state: str, provider: str) -> Optional[int]:
+def consume_state(state: str, provider: str) -> Optional[tuple[int, str]]:
     now = datetime.now(timezone.utc)
     with _conn() as conn:
         row = conn.execute(
-            "SELECT user_id, expires_at, provider FROM oauth_states WHERE state = ?",
+            "SELECT user_id, expires_at, provider, client FROM oauth_states WHERE state = ?",
             (state,),
         ).fetchone()
         conn.execute("DELETE FROM oauth_states WHERE state = ?", (state,))
@@ -60,4 +64,4 @@ def consume_state(state: str, provider: str) -> Optional[int]:
         return None
     if expires_at < now:
         return None
-    return int(row["user_id"])
+    return int(row["user_id"]), str(row["client"] or "web")

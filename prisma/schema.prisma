@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CandleCategory {
+  memorial
+  prayer
+  support
+  gratitude
+}
+
+enum PaymentGateway {
+  stripe
+  payu
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  refunded
+}
+
+enum CandlePaymentStatus {
+  pending
+  paid
+  failed
+}
+
+enum UserRole {
+  ADMIN
+  MODERATOR
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  role         UserRole @default(ADMIN)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memorials    Memorial[]
+}
+
+model Candle {
+  id            String             @id @default(cuid())
+  slug          String             @unique
+  name          String?
+  intention     String
+  category      CandleCategory
+  emoji         String?
+  durationDays  Int
+  startTime     DateTime?
+  endTime       DateTime?
+  createdAt     DateTime           @default(now())
+  paymentStatus CandlePaymentStatus @default(pending)
+  shareCount    Int                @default(0)
+  memorialId    String?
+  locationLat   Float?
+  locationLng   Float?
+  isBanned      Boolean            @default(false)
+
+  memorial      Memorial?          @relation(fields: [memorialId], references: [id], onDelete: SetNull)
+  payments      Payment[]
+
+  @@index([createdAt])
+  @@index([category])
+  @@index([endTime])
+  @@index([paymentStatus])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  candleId          String
+  gateway           PaymentGateway
+  amount            Int
+  currency          String
+  status            PaymentStatus @default(pending)
+  stripeSessionId   String?       @unique
+  payuTransactionId String?       @unique
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  candle            Candle        @relation(fields: [candleId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Memorial {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  personName  String
+  photoUrl    String?
+  biography   String?
+  guestbook   Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  candles     Candle[]
+}
+
+model ModerationItem {
+  id          String   @id @default(cuid())
+  candleId    String?
+  payload     Json
+  reason      String
+  status      String   @default("queued")
+  createdAt   DateTime @default(now())
+}

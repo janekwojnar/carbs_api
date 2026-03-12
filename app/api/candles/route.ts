@@ -5,7 +5,8 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const sort = searchParams.get('sort') ?? 'newest';
+  const sortParam = searchParams.get('sort') ?? 'newest';
+  const sort = ['newest', 'popular', 'ending'].includes(sortParam) ? sortParam : 'newest';
   const cursor = searchParams.get('cursor');
 
   const orderBy: Prisma.CandleOrderByWithRelationInput =

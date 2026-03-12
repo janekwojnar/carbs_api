@@ -6,5 +6,10 @@ export function containsProfanity(text: string) {
 }
 
 export function sanitizeInput(text: string) {
-  return text.replace(/[<>]/g, '');
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }

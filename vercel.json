@@ -1,0 +1,7 @@
+{
+  "framework": "nextjs",
+  "installCommand": "npm install",
+  "buildCommand": "npx prisma generate && next build",
+  "regions": ["fra1"],
+  "crons": []
+}

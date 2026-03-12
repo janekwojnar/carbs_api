@@ -17,6 +17,7 @@ export function WallGrid({ initial }: { initial: Candle[] }) {
   const [cursor, setCursor] = useState<string | null>(initial.length ? initial[initial.length - 1].id : null);
   const [sort, setSort] = useState<'newest' | 'popular' | 'ending'>('newest');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setItems(initial);
@@ -25,16 +26,44 @@ export function WallGrid({ initial }: { initial: Candle[] }) {
 
   const sortedItems = useMemo(() => items, [items]);
 
+  useEffect(() => {
+    async function refreshBySort() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const res = await fetch(`/api/candles?sort=${sort}`);
+        const data = (await res.json()) as { items: Candle[]; nextCursor: string | null };
+        if (!res.ok) throw new Error('Unable to load candles');
+        setItems(data.items);
+        setCursor(data.nextCursor);
+      } catch {
+        setError('Unable to load candles right now.');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    refreshBySort();
+  }, [sort]);
+
   async function loadMore() {
     if (!cursor || loading) return;
     setLoading(true);
+    setError(null);
 
-    const res = await fetch(`/api/candles?sort=${sort}&cursor=${cursor}`);
-    const data = (await res.json()) as { items: Candle[]; nextCursor: string | null };
+    try {
+      const res = await fetch(`/api/candles?sort=${sort}&cursor=${cursor}`);
+      const data = (await res.json()) as { items: Candle[]; nextCursor: string | null };
+      if (!res.ok) throw new Error('Unable to load more candles');
 
-    setItems((prev) => [...prev, ...data.items]);
-    setCursor(data.nextCursor);
-    setLoading(false);
+      setItems((prev) => [...prev, ...data.items]);
+      setCursor(data.nextCursor);
+    } catch {
+      setError('Unable to load more candles.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -62,6 +91,7 @@ export function WallGrid({ initial }: { initial: Candle[] }) {
           <CandleCard key={item.id} {...item} />
         ))}
       </div>
+      {error ? <p className="text-sm text-red-300">{error}</p> : null}
 
       <button
         onClick={loadMore}

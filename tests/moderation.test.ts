@@ -6,6 +6,6 @@ describe('moderation', () => {
   });
 
   it('sanitizes basic html tags', () => {
-    expect(sanitizeInput('<script>alert(1)</script>')).toBe('scriptalert(1)/script');
+    expect(sanitizeInput('<script>alert(1)</script>')).toBe('&lt;script&gt;alert(1)&lt;/script&gt;');
   });
 });

@@ -13,6 +13,7 @@ export function LightCandleForm() {
   const router = useRouter();
   const [gateway, setGateway] = useState<Gateway>('stripe');
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const form = useForm<CandleCreateInput>({
     resolver: zodResolver(candleCreateSchema),
@@ -25,6 +26,7 @@ export function LightCandleForm() {
 
   const onSubmit = form.handleSubmit(async (values) => {
     setBusy(true);
+    setError(null);
 
     const createdRes = await fetch('/api/candle/create', {
       method: 'POST',
@@ -35,7 +37,7 @@ export function LightCandleForm() {
     const createdData = await createdRes.json();
 
     if (!createdRes.ok) {
-      alert(createdData.error || 'Unable to create candle');
+      setError(createdData.error || 'Unable to create candle');
       setBusy(false);
       return;
     }
@@ -51,12 +53,18 @@ export function LightCandleForm() {
     });
 
     const paymentData = await paymentRes.json();
+    if (!paymentRes.ok) {
+      setError(paymentData.error || 'Unable to start payment');
+      setBusy(false);
+      return;
+    }
 
     if (paymentData.url) {
       window.location.href = paymentData.url;
       return;
     }
 
+    setBusy(false);
     router.push(`/candle/${createdData.candle.slug}`);
   });
 
@@ -110,6 +118,7 @@ export function LightCandleForm() {
       >
         {busy ? 'Processing...' : 'Continue to payment'}
       </button>
+      {error ? <p className="text-sm text-red-300">{error}</p> : null}
     </form>
   );
 }

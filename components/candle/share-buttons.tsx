@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useState } from 'react';
 
 type Props = {
@@ -9,7 +10,12 @@ type Props = {
 
 export function ShareButtons({ candleId, slug }: Props) {
   const [copied, setCopied] = useState(false);
-  const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/candle/${slug}`;
+  const url = useMemo(() => {
+    if (typeof window !== 'undefined') {
+      return `${window.location.origin}/candle/${slug}`;
+    }
+    return `/candle/${slug}`;
+  }, [slug]);
 
   async function track() {
     await fetch('/api/share', {
@@ -27,13 +33,13 @@ export function ShareButtons({ candleId, slug }: Props) {
 
   return (
     <div className="flex flex-wrap gap-2">
-      <a onClick={track} href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`} className="rounded-full border px-4 py-2 text-sm">
+      <a onClick={track} href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`} target="_blank" rel="noopener noreferrer" className="rounded-full border px-4 py-2 text-sm">
         Facebook
       </a>
-      <a onClick={track} href={`https://wa.me/?text=${encodeURIComponent(url)}`} className="rounded-full border px-4 py-2 text-sm">
+      <a onClick={track} href={`https://wa.me/?text=${encodeURIComponent(url)}`} target="_blank" rel="noopener noreferrer" className="rounded-full border px-4 py-2 text-sm">
         WhatsApp
       </a>
-      <a onClick={track} href={`https://t.me/share/url?url=${encodeURIComponent(url)}`} className="rounded-full border px-4 py-2 text-sm">
+      <a onClick={track} href={`https://t.me/share/url?url=${encodeURIComponent(url)}`} target="_blank" rel="noopener noreferrer" className="rounded-full border px-4 py-2 text-sm">
         Telegram
       </a>
       <button onClick={onCopy} className="rounded-full border px-4 py-2 text-sm">

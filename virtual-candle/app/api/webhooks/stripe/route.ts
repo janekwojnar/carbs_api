@@ -1,5 +1,6 @@
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
+import Stripe from 'stripe';
 
 import { trackServerEvent } from '@/lib/analytics/events';
 import { computeActiveWindow } from '@/lib/candle/lifecycle';
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
 
   const rawBody = await request.text();
 
-  let event;
+  let event: Stripe.Event;
   try {
     event = stripe().webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch {
@@ -23,10 +24,18 @@ export async function POST(request: Request) {
   }
 
   if (event.type === 'checkout.session.completed') {
-    const session = event.data.object;
+    const session = event.data.object as Stripe.Checkout.Session;
     const candleId = session.metadata?.candleId;
 
     if (candleId && session.id) {
+      const payment = await prisma.payment.findFirst({
+        where: { stripeSessionId: session.id }
+      });
+
+      if (payment?.status === 'paid') {
+        return NextResponse.json({ received: true, idempotent: true });
+      }
+
       const candle = await prisma.candle.findUnique({ where: { id: candleId } });
 
       if (candle) {

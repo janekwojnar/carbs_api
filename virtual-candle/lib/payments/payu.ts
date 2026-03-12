@@ -31,6 +31,7 @@ type CreateOrderInput = {
   extOrderId: string;
   buyerEmail?: string;
   continueUrl: string;
+  customerIp: string;
 };
 
 export async function createPayuOrder(input: CreateOrderInput) {
@@ -39,7 +40,7 @@ export async function createPayuOrder(input: CreateOrderInput) {
 
   const payload = {
     notifyUrl: `${process.env.APP_URL}/api/webhooks/payu`,
-    customerIp: '127.0.0.1',
+    customerIp: input.customerIp,
     merchantPosId: process.env.PAYU_CLIENT_ID,
     description: input.description,
     currencyCode: input.currency,

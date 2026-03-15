@@ -6,6 +6,8 @@ import { trackServerEvent } from '@/lib/analytics/events';
 import { computeActiveWindow } from '@/lib/candle/lifecycle';
 import { prisma } from '@/lib/prisma';
 
+export const runtime = 'nodejs';
+
 function safeCompare(left: string, right: string) {
   const leftBuffer = Buffer.from(left);
   const rightBuffer = Buffer.from(right);
@@ -30,20 +32,24 @@ function parsePayuSignatureHeader(raw?: string | null) {
   return parsed;
 }
 
+function computePayuMd5(body: string, secondKey: string) {
+  return crypto.createHash('md5').update(body + secondKey).digest('hex');
+}
+
 function verifyPayuSignature(body: string, headerValue?: string | null) {
   if (!process.env.PAYU_WEBHOOK_SECRET) return true;
   if (!headerValue) return false;
 
   const parsed = parsePayuSignatureHeader(headerValue);
-  const expectedSha256 = crypto
-    .createHmac('sha256', process.env.PAYU_WEBHOOK_SECRET)
-    .update(body)
-    .digest('hex');
-
-  const expectedMd5 = crypto.createHash('md5').update(body + process.env.PAYU_WEBHOOK_SECRET).digest('hex');
+  const algorithm = parsed?.algorithm?.toUpperCase() ?? 'MD5';
   const provided = parsed?.signature ?? '';
 
-  return safeCompare(provided, expectedSha256) || safeCompare(provided, expectedMd5);
+  if (algorithm !== 'MD5') {
+    return false;
+  }
+
+  const expectedMd5 = computePayuMd5(body, process.env.PAYU_WEBHOOK_SECRET);
+  return safeCompare(provided, expectedMd5);
 }
 
 export async function POST(request: Request) {

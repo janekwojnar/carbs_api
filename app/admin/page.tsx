@@ -23,6 +23,12 @@ export default async function AdminDashboardPage() {
 
   const revenue = (paidPayments._sum.amount ?? 0) / 100;
   const conversionRate = totalCandles > 0 ? Math.round((activeCandles / totalCandles) * 100) : 0;
+  const topPages = [
+    { category: 'memorial', count: memorialCount },
+    { category: 'prayer', count: prayerCount },
+    { category: 'support', count: supportCount },
+    { category: 'gratitude', count: gratitudeCount }
+  ];
 
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-4 py-16">
@@ -66,9 +72,3 @@ function Card({ title, value }: { title: string; value: string }) {
     </div>
   );
 }
-  const topPages = [
-    { category: 'memorial', count: memorialCount },
-    { category: 'prayer', count: prayerCount },
-    { category: 'support', count: supportCount },
-    { category: 'gratitude', count: gratitudeCount }
-  ];

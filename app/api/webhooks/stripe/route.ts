@@ -7,6 +7,8 @@ import { computeActiveWindow } from '@/lib/candle/lifecycle';
 import { prisma } from '@/lib/prisma';
 import { stripe } from '@/lib/payments/stripe';
 
+export const runtime = 'nodejs';
+
 export async function POST(request: Request) {
   const sig = headers().get('stripe-signature');
 

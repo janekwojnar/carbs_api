@@ -1,6 +1,6 @@
-# VirtualCandle - Production Edition
+# VirtualCandle
 
-A production-grade global virtual candle platform with Stripe + PayU (BLIK), admin panel, moderation, SEO pages, map, analytics, and CI/CD.
+Next.js application with Prisma, NextAuth, Stripe, PayU, admin routes, SEO routes, map view, and CI configuration.
 
 ## Live website (target)
 
@@ -94,7 +94,7 @@ virtual-candle/
 cd virtual-candle
 npm install
 cp .env.example .env
-npx prisma migrate dev --name init
+npx prisma migrate deploy
 npx prisma generate
 npm run seed:admin
 npm run dev
@@ -132,7 +132,7 @@ Frontend success redirects never activate a candle.
 2. Push this folder to GitHub.
 3. Import repo to Vercel (root: `virtual-candle`).
 4. Add all production env vars in Vercel.
-5. Deploy.
+5. Deploy. `vercel.json` runs `prisma migrate deploy` during the Vercel build.
 6. Configure Stripe and PayU webhooks to production URLs.
 7. Add custom domain in Vercel (`virtualcandle.com`) and update `APP_URL` + `NEXTAUTH_URL`.
 
@@ -151,4 +151,3 @@ Add these repo secrets:
 - [ ] Admin login works and dashboard loads stats
 - [ ] `/sitemap.xml` and `/robots.txt` are publicly available
 - [ ] SSL and custom domain active in Vercel
-

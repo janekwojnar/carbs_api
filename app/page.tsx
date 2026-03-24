@@ -5,6 +5,8 @@ import { MapWrapper } from '@/components/map/map-wrapper';
 import { WallGrid } from '@/components/candle/wall-grid';
 import { prisma } from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 export default async function HomePage() {
   const [candles, mapItems] = await Promise.all([
     prisma.candle.findMany({

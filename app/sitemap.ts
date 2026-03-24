@@ -2,20 +2,10 @@ import type { MetadataRoute } from 'next';
 
 import { prisma } from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = process.env.APP_URL ?? 'https://virtualcandle.vercel.app';
-
-  const [candles, memorials] = await Promise.all([
-    prisma.candle.findMany({
-      where: { paymentStatus: 'paid', isBanned: false },
-      select: { slug: true, createdAt: true },
-      take: 5000
-    }),
-    prisma.memorial.findMany({
-      select: { slug: true, updatedAt: true },
-      take: 5000
-    })
-  ]);
 
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${siteUrl}/`, changeFrequency: 'daily', priority: 1 },
@@ -27,19 +17,36 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${siteUrl}/candle-for-mother`, changeFrequency: 'weekly', priority: 0.7 }
   ];
 
-  const candleRoutes: MetadataRoute.Sitemap = candles.map((candle) => ({
-    url: `${siteUrl}/candle/${candle.slug}`,
-    lastModified: candle.createdAt,
-    changeFrequency: 'daily',
-    priority: 0.6
-  }));
+  try {
+    const [candles, memorials] = await Promise.all([
+      prisma.candle.findMany({
+        where: { paymentStatus: 'paid', isBanned: false },
+        select: { slug: true, createdAt: true },
+        take: 5000
+      }),
+      prisma.memorial.findMany({
+        select: { slug: true, updatedAt: true },
+        take: 5000
+      })
+    ]);
 
-  const memorialRoutes: MetadataRoute.Sitemap = memorials.map((memorial) => ({
-    url: `${siteUrl}/memorial/${memorial.slug}`,
-    lastModified: memorial.updatedAt,
-    changeFrequency: 'weekly',
-    priority: 0.65
-  }));
+    const candleRoutes: MetadataRoute.Sitemap = candles.map((candle) => ({
+      url: `${siteUrl}/candle/${candle.slug}`,
+      lastModified: candle.createdAt,
+      changeFrequency: 'daily',
+      priority: 0.6
+    }));
 
-  return [...staticRoutes, ...candleRoutes, ...memorialRoutes];
+    const memorialRoutes: MetadataRoute.Sitemap = memorials.map((memorial) => ({
+      url: `${siteUrl}/memorial/${memorial.slug}`,
+      lastModified: memorial.updatedAt,
+      changeFrequency: 'weekly',
+      priority: 0.65
+    }));
+
+    return [...staticRoutes, ...candleRoutes, ...memorialRoutes];
+  } catch (error) {
+    console.warn('Sitemap generation fallback triggered.', error);
+    return staticRoutes;
+  }
 }

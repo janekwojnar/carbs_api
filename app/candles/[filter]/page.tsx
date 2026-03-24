@@ -4,6 +4,8 @@ import { CandleCard } from '@/components/candle/candle-card';
 import { prisma } from '@/lib/prisma';
 import { seoFilterMap } from '@/lib/seo/filters';
 
+export const dynamic = 'force-dynamic';
+
 export async function generateStaticParams() {
   return Object.keys(seoFilterMap).map((filter) => ({ filter }));
 }

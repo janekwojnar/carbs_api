@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { CandleCard } from '@/components/candle/candle-card';
 import { prisma } from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Candle for mother | VirtualCandle',
   description: 'Light a virtual candle for your mother and share your intention.'
